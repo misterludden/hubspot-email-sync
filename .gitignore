@@ -1,0 +1,34 @@
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-error.log*
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+
+#google api creds
+credentials.json
+
+# testdata
+test*.json
+
+# Logs
+logs/
+*.log
+log/
+
+# Database & Cache files
+*.sqlite
+*.sqlite-journal
+mongodb/
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

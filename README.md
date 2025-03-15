@@ -6,13 +6,14 @@ This project integrates Gmail/Outlook with HubSpot CRM to log incoming and outgo
 ```
 📂 hubspot_email_sync
 ├── 📂 backend
-│   ├── app.py  # Main FastAPI backend
-│   ├── email_fetcher.py  # Fetches emails from Gmail/Outlook
-│   ├── hubspot_api.py  # Manages HubSpot API interactions
-│   ├── ai_classifier.py  # AI-driven email classification
-│   ├── database.py  # Stores email metadata
-│   ├── config.py  # Stores API keys and environment variables
-│   └── requirements.txt  # Python dependencies
+│   ├── server.js  # Main Express.js backend
+│   ├── emailFetcher.js  # Fetches emails from Gmail/Outlook
+│   ├── hubspotApi.js  # Manages HubSpot API interactions
+│   ├── aiClassifier.js  # AI-driven email classification
+│   ├── database.js  # Stores email metadata
+│   ├── config.js  # Stores API keys and environment variables
+│   ├── package.json  # Backend dependencies
+│   └── .env  # Environment variables
 │
 ├── 📂 frontend
 │   ├── components
@@ -24,8 +25,7 @@ This project integrates Gmail/Outlook with HubSpot CRM to log incoming and outgo
 │   ├── package.json  # Frontend dependencies
 │
 ├── README.md  # Project overview
-├── .env  # Environment variables
-└── .gitignore  # Ignored files
+├── .gitignore  # Ignored files
 ```
 
 ## How to Set Up
@@ -36,11 +36,11 @@ git clone https://github.com/yourusername/hubspot_email_sync.git
 cd hubspot_email_sync
 ```
 
-### 2. Backend Setup (Python/FastAPI):
+### 2. Backend Setup (Node.js/Express):
 ```sh
 cd backend
-pip install -r requirements.txt
-uvicorn app:app --reload
+npm install
+node server.js
 ```
 
 ### 3. Frontend Setup (React):

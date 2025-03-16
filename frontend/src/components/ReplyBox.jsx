@@ -1,26 +1,26 @@
 import React, { useState } from "react";
 
-import axios from "axios";
+const ReplyBox = ({ email, onReplySent }) => {
+  const [reply, setReply] = useState("");
 
-const ReplyBox = ({ emailId, recipient, onSend }) => {
-  const [message, setMessage] = useState("");
-  const [sender, setSender] = useState(""); // Capture sender email
-
-  const handleReplySubmit = () => {
-    if (!message.trim() || !sender.trim()) {
-        alert("Sender and message are required");
-        return;
+  const handleSendReply = async () => {
+    if (!reply.trim()) return;
+    const response = await fetch(`/emails/${email._id}/reply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sender: "me@example.com", message: reply, isInbound: false }),
+    });
+    if (response.ok) {
+      const updatedEmail = await response.json();
+      onReplySent(updatedEmail);
+      setReply("");
     }
-
-    onSend(message, sender); // Send reply to EmailDetail
-    setMessage("");
   };
 
   return (
     <div className="reply-box">
-      <input type="email" placeholder="Your email" value={sender} onChange={(e) => setSender(e.target.value)} />
-      <textarea placeholder={`Reply to ${recipient}`} value={message} onChange={(e) => setMessage(e.target.value)} />
-      <button onClick={handleReplySubmit}>Send</button>
+      <textarea value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Type your reply..." />
+      <button onClick={handleSendReply}>Send</button>
     </div>
   );
 };

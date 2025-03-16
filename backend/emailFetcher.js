@@ -7,8 +7,7 @@ const Email = require("./models/Email");
 const CLIENT_ID = process.env.OUTLOOK_CLIENT_ID;
 const CLIENT_SECRET = process.env.OUTLOOK_CLIENT_SECRET;
 const REDIRECT_URI = process.env.OUTLOOK_REDIRECT_URI;
-const AUTH_URL =
-  "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
+const AUTH_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
 const TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 
 const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
@@ -17,12 +16,8 @@ const TOKEN_PATH = "token.json";
 
 async function authenticateGmail() {
   const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH));
-  const { client_secret, client_id, redirect_uris } = credentials.installed;
-  const oAuth2Client = new google.auth.OAuth2(
-    client_id,
-    client_secret,
-    redirect_uris[0]
-  );
+  const { client_secret, client_id, redirect_uris } = credentials.web;
+  const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
 
   if (fs.existsSync(TOKEN_PATH)) {
     const token = JSON.parse(fs.readFileSync(TOKEN_PATH));
@@ -75,21 +70,16 @@ async function fetchGmailEmails(auth) {
 }
 
 async function fetchOutlookSentEmails(accessToken) {
-  const response = await axios.get(
-    "https://graph.microsoft.com/v1.0/me/messages?$filter=folder eq 'SentItems'",
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    }
-  );
+  const response = await axios.get("https://graph.microsoft.com/v1.0/me/messages?$filter=folder eq 'SentItems'", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
   return response.data.value || [];
 }
 
 async function sendEmailViaGmail(auth, toEmail, subject, body) {
   const gmail = google.gmail({ version: "v1", auth });
 
-  const message = [`To: ${toEmail}`, `Subject: ${subject}`, "", body].join(
-    "\n"
-  );
+  const message = [`To: ${toEmail}`, `Subject: ${subject}`, "", body].join("\n");
 
   const encodedMessage = base64.encode(message);
 

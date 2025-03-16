@@ -32,8 +32,8 @@ body {
 /* Email Section Layout */
 .email-section {
   display: flex;
-  width: 80%;
-  max-width: 1200px;
+  width: 90%;
+  max-width: 1400px;
   background: white;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   border-radius: 8px;
@@ -43,17 +43,23 @@ body {
 /* Email List */
 .email-list {
   flex: 1;
-  padding: 20px;
+  padding: 15px;
   border-right: 1px solid #ddd;
+  max-width: 40%;
+  overflow-y: auto;
 }
 
 .email-list-item {
   background-color: #fff;
-  padding: 15px;
-  margin-bottom: 10px;
-  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+  border-radius: 6px;
   border: 1px solid #ddd;
   transition: background 0.3s ease-in-out;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 60px;
 }
 
 .email-list-item:hover {
@@ -73,19 +79,21 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-width: 60%;
 }
 
 /* Email Detail */
 .email-detail {
   background: white;
-  padding: 15px;
+  padding: 20px;
   border-radius: 8px;
   box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.1);
-  margin: 10px 0;
+  margin-left: 10px;
+  flex: 1;
 }
 
 .email-subject {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: bold;
 }
 
@@ -96,7 +104,7 @@ body {
 }
 
 .email-body {
-  padding: 10px;
+  padding: 15px;
   background: #fafafa;
   border-radius: 8px;
   margin-top: 10px;
@@ -104,7 +112,6 @@ body {
 }
 
 /* Threaded Replies */
-/* Email Thread */
 .email-thread {
   margin-top: 20px;
 }
@@ -136,36 +143,7 @@ body {
 .email-reply-body {
   font-size: 14px;
   color: #555;
-  padding-left: 20px; /* Align text under meta */
-}
-
-/* Email Header & Metadata */
-.email-header-container {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding-bottom: 5px;
-}
-
-.email-header {
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.email-meta {
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 3px;
-}
-
-/* Email Body */
-.email-body {
-  padding: 15px;
-  background: #fafafa;
-  border-radius: 8px;
-  margin-top: 10px;
-  border: 1px solid #ddd;
+  padding-left: 20px;
 }
 
 /* Reply Button */
@@ -173,7 +151,7 @@ body {
   background-color: #ff5c35;
   color: white;
   border: none;
-  padding: 6px 12px;
+  padding: 8px 14px;
   cursor: pointer;
   border-radius: 4px;
   transition: background 0.3s;
@@ -182,7 +160,7 @@ body {
   gap: 5px;
   font-size: 14px;
   width: auto;
-  margin-bottom: 10px; /* Spacing between button and thread */
+  margin-bottom: 10px;
 }
 
 .reply-button:hover {
@@ -202,7 +180,7 @@ body {
 }
 
 .reply-box textarea {
-  width: 80%;
+  width: 100%;
   min-height: 80px;
   padding: 10px;
   border: 1px solid #ddd;
@@ -222,4 +200,12 @@ body {
 
 .reply-box button:hover {
   background-color: #e04e2b;
+}
+
+/* Settings */
+.settings-button {
+  font-size: 18px;
+  background: none;
+  border: none;
+  cursor: pointer;
 }

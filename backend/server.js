@@ -3,6 +3,7 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const connectDB = require("./database");
 const emailRoutes = require("./routes/emailRoutes");
+const authRoutes = require("./routes/authRoutes");
 
 // Load environment variables
 dotenv.config();
@@ -18,6 +19,7 @@ app.use(cors());
 connectDB();
 
 // API Routes
+app.use("/api", authRoutes);
 app.use("/api/emails", emailRoutes);
 
 // Root endpoint

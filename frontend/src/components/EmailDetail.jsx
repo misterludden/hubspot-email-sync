@@ -6,24 +6,57 @@ import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
 
 const EmailDetail = ({ selectedEmail, onReply, onArchive }) => {
-  // Function to get classification badge color
-  const getClassificationColor = (sentiment) => {
-    if (!sentiment) return '#888';
+  // Function to get classification badge color and icon
+  const getClassificationInfo = (sentiment) => {
+    if (!sentiment) return { color: '#888', icon: 'fa-meh' };
     switch (sentiment) {
-      case 'Positive': return '#28a745';
-      case 'Negative': return '#dc3545';
-      case 'Neutral': default: return '#6c757d';
+      case 'Positive': return { color: '#28a745', icon: 'fa-smile' };
+      case 'Negative': return { color: '#dc3545', icon: 'fa-frown' };
+      case 'Neutral': default: return { color: '#6c757d', icon: 'fa-meh' };
     }
   };
 
-  // Function to get priority badge color
-  const getPriorityColor = (priority) => {
-    if (!priority) return '#888';
+  // Function to get priority badge color and icon
+  const getPriorityInfo = (priority) => {
+    if (!priority) return { color: '#888', icon: 'fa-flag' };
     switch (priority) {
-      case 'High': return '#dc3545';
-      case 'Medium': return '#ffc107';
-      case 'Low': default: return '#28a745';
+      case 'High': return { color: '#dc3545', icon: 'fa-exclamation-circle' };
+      case 'Medium': return { color: '#ffc107', icon: 'fa-exclamation' };
+      case 'Low': default: return { color: '#28a745', icon: 'fa-check-circle' };
     }
+  };
+  
+  // Function to get topic badge color and icon
+  const getTopicInfo = (topic) => {
+    if (!topic) return { color: '#888', icon: 'fa-tag' };
+    switch (topic) {
+      case 'Support': return { color: '#007bff', icon: 'fa-life-ring' };
+      case 'Sales': return { color: '#17a2b8', icon: 'fa-dollar-sign' };
+      case 'Billing': return { color: '#6f42c1', icon: 'fa-file-invoice-dollar' };
+      case 'Inquiry': return { color: '#20c997', icon: 'fa-question-circle' };
+      case 'Meeting': return { color: '#fd7e14', icon: 'fa-calendar-alt' };
+      case 'Feedback': return { color: '#e83e8c', icon: 'fa-comment-dots' };
+      case 'Partnership': return { color: '#6610f2', icon: 'fa-handshake' };
+      case 'Marketing': return { color: '#17a2b8', icon: 'fa-bullhorn' };
+      default: return { color: '#6c757d', icon: 'fa-tag' };
+    }
+  };
+  
+  // Function to get urgency badge color and icon
+  const getUrgencyInfo = (urgency) => {
+    if (!urgency) return { color: '#888', icon: 'fa-clock' };
+    switch (urgency) {
+      case 'High': return { color: '#dc3545', icon: 'fa-bolt' };
+      case 'Medium': return { color: '#ffc107', icon: 'fa-clock' };
+      case 'Low': default: return { color: '#28a745', icon: 'fa-hourglass-half' };
+    }
+  };
+  
+  // Function to get follow-up badge color and icon
+  const getFollowUpInfo = (followUpRequired) => {
+    return followUpRequired 
+      ? { color: '#007bff', icon: 'fa-reply-all', text: 'Follow-up Required' }
+      : { color: '#6c757d', icon: 'fa-check-circle', text: 'No Follow-up Needed' };
   };
   if (!selectedEmail) {
     const userEmail = localStorage.getItem("userEmail");
@@ -410,31 +443,87 @@ const EmailDetail = ({ selectedEmail, onReply, onArchive }) => {
               {selectedEmail.classification.dominantSentiment && (
                 <span 
                   className="classification-badge sentiment-badge"
-                  style={{ backgroundColor: getClassificationColor(selectedEmail.classification.dominantSentiment) }}
+                  style={{ backgroundColor: getClassificationInfo(selectedEmail.classification.dominantSentiment).color }}
+                  title={`Average Sentiment Score: ${(selectedEmail.classification.averageSentimentScore || 0).toFixed(2)}`}
                 >
-                  {selectedEmail.classification.dominantSentiment}
+                  <i className={`fas ${getClassificationInfo(selectedEmail.classification.dominantSentiment).icon}`}></i> {selectedEmail.classification.dominantSentiment}
                 </span>
               )}
               {selectedEmail.classification.dominantTopic && (
-                <span className="classification-badge topic-badge">
-                  {selectedEmail.classification.dominantTopic}
+                <span 
+                  className="classification-badge topic-badge"
+                  style={{ backgroundColor: getTopicInfo(selectedEmail.classification.dominantTopic).color }}
+                  title={`Topic Confidence: ${(selectedEmail.classification.topicConfidence || 0).toFixed(2)}`}
+                >
+                  <i className={`fas ${getTopicInfo(selectedEmail.classification.dominantTopic).icon}`}></i> {selectedEmail.classification.dominantTopic}
                 </span>
               )}
               {selectedEmail.classification.highestPriority && (
                 <span 
                   className="classification-badge priority-badge"
-                  style={{ backgroundColor: getPriorityColor(selectedEmail.classification.highestPriority) }}
+                  style={{ backgroundColor: getPriorityInfo(selectedEmail.classification.highestPriority).color }}
+                  title={`Priority Level: ${selectedEmail.classification.highestPriority}`}
                 >
-                  {selectedEmail.classification.highestPriority} Priority
+                  <i className={`fas ${getPriorityInfo(selectedEmail.classification.highestPriority).icon}`}></i> {selectedEmail.classification.highestPriority} Priority
+                </span>
+              )}
+              {selectedEmail.classification.highestUrgency && (
+                <span 
+                  className="classification-badge urgency-badge"
+                  style={{ backgroundColor: getUrgencyInfo(selectedEmail.classification.highestUrgency).color }}
+                  title={`Urgency Level: ${selectedEmail.classification.highestUrgency}`}
+                >
+                  <i className={`fas ${getUrgencyInfo(selectedEmail.classification.highestUrgency).icon}`}></i> {selectedEmail.classification.highestUrgency} Urgency
+                </span>
+              )}
+              {selectedEmail.classification.followUpRequired !== undefined && (
+                <span 
+                  className="classification-badge followup-badge"
+                  style={{ backgroundColor: getFollowUpInfo(selectedEmail.classification.followUpRequired).color }}
+                  title={selectedEmail.classification.followUpRequired ? 'This thread requires follow-up' : 'No follow-up needed'}
+                >
+                  <i className={`fas ${getFollowUpInfo(selectedEmail.classification.followUpRequired).icon}`}></i> {getFollowUpInfo(selectedEmail.classification.followUpRequired).text}
                 </span>
               )}
             </div>
+            
             {selectedEmail.classification.keyTopics && selectedEmail.classification.keyTopics.length > 0 && (
               <div className="key-topics">
-                <span className="key-topics-label">Key Topics:</span>
-                {selectedEmail.classification.keyTopics.map((topic, i) => (
-                  <span key={i} className="key-topic">{topic}</span>
-                ))}
+                <span className="key-topics-label"><i className="fas fa-key"></i> Key Topics:</span>
+                <div className="key-topics-container">
+                  {selectedEmail.classification.keyTopics.map((topic, i) => (
+                    <span key={i} className="key-topic">{topic}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {selectedEmail.classification.actionItems && selectedEmail.classification.actionItems.length > 0 && (
+              <div className="action-items">
+                <span className="action-items-label"><i className="fas fa-tasks"></i> Action Items:</span>
+                <div className="action-items-container">
+                  {selectedEmail.classification.actionItems.map((item, i) => (
+                    <div key={i} className="action-item">
+                      <i className="fas fa-check-circle"></i> {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {selectedEmail.classification.entities && selectedEmail.classification.entities.length > 0 && (
+              <div className="entities">
+                <span className="entities-label"><i className="fas fa-lightbulb"></i> Entities:</span>
+                <div className="entities-container">
+                  {selectedEmail.classification.entities.map((entity, i) => (
+                    <span key={i} className="entity-item" title={`Type: ${entity.entity || 'Unknown'}`}>
+                      <i className={`fas ${entity.entity === 'date' ? 'fa-calendar-alt' : 
+                                    entity.entity === 'email' ? 'fa-envelope' : 
+                                    entity.entity === 'phone' ? 'fa-phone' : 
+                                    entity.entity === 'money' ? 'fa-money-bill-alt' : 'fa-tag'}`}></i> {entity.value}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -554,49 +643,28 @@ const EmailDetail = ({ selectedEmail, onReply, onArchive }) => {
                   {message.classification.sentiment && (
                     <span 
                       className="classification-badge small sentiment-badge"
-                      style={{ backgroundColor: getClassificationColor(message.classification.sentiment) }}
+                      style={{ backgroundColor: getClassificationInfo(message.classification.sentiment).color }}
                       title={`Sentiment Score: ${message.classification.sentimentScore || 0}`}
                     >
-                      {message.classification.sentiment}
+                      <i className={`fas ${getClassificationInfo(message.classification.sentiment).icon}`}></i> {message.classification.sentiment}
                     </span>
                   )}
                   {message.classification.topic && (
-                    <span className="classification-badge small topic-badge">
-                      {message.classification.topic}
+                    <span 
+                      className="classification-badge small topic-badge"
+                      style={{ backgroundColor: getTopicInfo(message.classification.topic).color }}
+                      title={`Topic: ${message.classification.topic}`}
+                    >
+                      <i className={`fas ${getTopicInfo(message.classification.topic).icon}`}></i> {message.classification.topic}
                     </span>
                   )}
                   {message.classification.priority && (
                     <span 
                       className="classification-badge small priority-badge"
-                      style={{ backgroundColor: getPriorityColor(message.classification.priority) }}
+                      style={{ backgroundColor: getPriorityInfo(message.classification.priority).color }}
+                      title={`Priority: ${message.classification.priority}`}
                     >
-                      {message.classification.priority}
-                    </span>
-                  )}
-                </div>
-              )}
-              {message.classification && (
-                <div className="message-classification">
-                  {message.classification.sentiment && (
-                    <span 
-                      className="classification-badge small sentiment-badge"
-                      style={{ backgroundColor: getClassificationColor(message.classification.sentiment) }}
-                      title={`Sentiment Score: ${message.classification.sentimentScore || 0}`}
-                    >
-                      {message.classification.sentiment}
-                    </span>
-                  )}
-                  {message.classification.topic && (
-                    <span className="classification-badge small topic-badge">
-                      {message.classification.topic}
-                    </span>
-                  )}
-                  {message.classification.priority && (
-                    <span 
-                      className="classification-badge small priority-badge"
-                      style={{ backgroundColor: getPriorityColor(message.classification.priority) }}
-                    >
-                      {message.classification.priority}
+                      <i className={`fas ${getPriorityInfo(message.classification.priority).icon}`}></i> {message.classification.priority}
                     </span>
                   )}
                 </div>

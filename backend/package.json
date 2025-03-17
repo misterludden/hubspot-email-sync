@@ -11,6 +11,11 @@
     },
     "dependencies": {
         "@azure/msal-node": "^2.6.4",
+        "@nlpjs/core": "^4.26.1",
+        "@nlpjs/lang-en": "^4.26.1",
+        "@nlpjs/ner": "^5.0.0-alpha.5",
+        "@nlpjs/nlp": "^4.26.1",
+        "@nlpjs/sentiment": "^4.26.1",
         "axios": "^1.8.3",
         "base-64": "^1.0.0",
         "cors": "^2.8.5",
@@ -19,7 +24,6 @@
         "fs": "^0.0.1-security",
         "google-auth-library": "^9.15.1",
         "googleapis": "^146.0.0",
-        "mongoose": "^8.12.1",
-        "sentiment": "^5.0.2"
+        "mongoose": "^8.12.1"
     }
 }

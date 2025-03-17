@@ -216,6 +216,7 @@ body {
   padding: 10px;
   background: #f8f9fa;
   border-bottom: 1px solid #ddd;
+  margin-bottom: 20px;
 }
 
 .nav-bar button {
@@ -230,6 +231,156 @@ body {
 
 .nav-bar button:hover {
   background-color: #0056b3;
+}
+
+/* Settings Page Styles */
+.settings-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.provider-selection {
+  margin-bottom: 30px;
+}
+
+.provider-tabs {
+  display: flex;
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 20px;
+}
+
+.provider-tab {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.3s ease;
+}
+
+.provider-tab:hover {
+  background-color: #f5f5f5;
+}
+
+.provider-tab.active {
+  border-bottom: 3px solid #ff5722;
+  font-weight: bold;
+}
+
+.provider-settings {
+  background-color: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.connected-provider {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.connection-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.disconnect-btn {
+  padding: 8px 16px;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.disconnect-btn:hover {
+  background-color: #d32f2f;
+}
+
+.sync-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.initial-sync-required {
+  background-color: #fff3cd;
+  border-left: 4px solid #ffc107;
+  padding: 10px 15px;
+  margin-bottom: 15px;
+}
+
+.sync-options {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.sync-options select {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.sync-btn {
+  padding: 8px 16px;
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sync-btn:hover {
+  background-color: #388e3c;
+}
+
+.sync-btn:disabled {
+  background-color: #9e9e9e;
+  cursor: not-allowed;
+}
+
+.sync-status.success {
+  background-color: #e8f5e9;
+  border-left: 4px solid #4caf50;
+  padding: 10px 15px;
+}
+
+.connect-provider {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 30px;
+  text-align: center;
+}
+
+.connect-btn {
+  padding: 12px 24px;
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.connect-btn:hover {
+  background-color: #1976d2;
+}
+
+.connect-btn:disabled {
+  background-color: #9e9e9e;
+  cursor: not-allowed;
 }
 
 .email-list-item {

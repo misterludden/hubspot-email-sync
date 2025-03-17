@@ -15,7 +15,7 @@ const EmailDetail = ({ selectedEmail, onReply, onArchive }) => {
     setArchiving(true);
     try {
       const userEmail = localStorage.getItem("userEmail");
-      await axios.post("/api/auth/archive", {
+      await axios.post("/api/gmail/archive", {
         threadId: selectedEmail.threadId,
         email: userEmail || selectedEmail.recipient,
       });

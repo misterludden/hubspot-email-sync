@@ -6,6 +6,7 @@ const emailRoutes = require("./routes/emailRoutes");
 const authRoutes = require("./routes/authRoutes");
 const gmailRoutes = require("./routes/gmailRoutes");
 const emailProviderRoutes = require("./routes/emailProviderRoutes");
+const attachmentRoutes = require("./routes/attachmentRoutes");
 
 // Load environment variables
 dotenv.config();
@@ -14,7 +15,8 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increased payload limit
+app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Also handle URL-encoded data with increased limit
 app.use(cors());
 
 // Connect to MongoDB
@@ -25,6 +27,7 @@ app.use("/api", authRoutes);
 app.use("/api/emails", emailRoutes);
 app.use("/api/gmail", gmailRoutes); // Legacy route, will be deprecated
 app.use("/api/email", emailProviderRoutes); // New generic email provider routes
+app.use("/api/attachments", attachmentRoutes); // Routes for handling attachments
 
 // Root endpoint
 app.get("/", (req, res) => {

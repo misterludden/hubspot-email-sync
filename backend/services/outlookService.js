@@ -8,6 +8,15 @@ class OutlookService extends EmailService {
   constructor() {
     super();
     this.syncCompleted = false;
+    this.providerName = 'outlook';
+    
+    // Validate required environment variables
+    const requiredVars = ['OUTLOOK_CLIENT_ID', 'OUTLOOK_CLIENT_SECRET', 'OUTLOOK_TENANT_ID', 'OUTLOOK_REDIRECT_URI'];
+    requiredVars.forEach(varName => {
+      if (!process.env[varName]) {
+        throw new Error(`${varName} environment variable is required for Outlook integration`);
+      }
+    });
     
     // Microsoft OAuth configuration
     this.msalConfig = {
@@ -310,31 +319,109 @@ class OutlookService extends EmailService {
       console.log(`Valid messages to insert: ${validMessages.length}`);
 
       for (const message of validMessages) {
-        console.log(`Saving message: ${message.messageId} | Subject: ${message.subject}`);
+        console.log(`Processing message: ${message.messageId} | Subject: ${message.subject}`);
 
-        // Check if the message already exists in the thread
-        const existingMessage = await Email.findOne({ "messages.messageId": message.messageId });
-        if (existingMessage) {
-          console.log(`Skipping duplicate message: ${message.messageId}`);
-          continue;
-        }
-
-        // Upsert thread and add messages without duplication
-        await Email.findOneAndUpdate(
-          { threadId: message.threadId },
-          {
-            $setOnInsert: { 
-              threadId: message.threadId, 
-              subject: message.subject,
+        try {
+          // Use a single findOneAndUpdate operation with upsert to avoid race conditions
+          // This will either update an existing thread or create a new one atomically
+          const result = await Email.findOneAndUpdate(
+            { 
+              threadId: message.threadId,
               provider: this.getProviderName(),
+              userEmail: userEmail.toLowerCase(),
+              "messages.messageId": { $ne: message.messageId } // Only if this message doesn't exist
             },
-            $addToSet: {
-              participants: { $each: [message.sender, message.recipient] },
+            {
+              $setOnInsert: {
+                threadId: message.threadId,
+                subject: message.subject,
+                provider: this.getProviderName(),
+                userEmail: userEmail.toLowerCase(),
+              },
+              $addToSet: {
+                participants: { $each: [message.sender, message.recipient].filter(p => p) }
+              },
+              $push: { messages: message },
+              $set: { 
+                // Update timestamp if it's more recent
+                latestTimestamp: message.timestamp
+              }
             },
-            $push: { messages: message },
-          },
-          { upsert: true }
-        );
+            { 
+              upsert: true, 
+              new: true,
+              // Use this option to avoid the duplicate key error
+              runValidators: false
+            }
+          );
+          
+          console.log(`Saved message: ${message.messageId} | Subject: ${message.subject}`);
+        } catch (error) {
+          // If we still get an error, try a different approach
+          if (error.code === 11000) {
+            console.log(`Duplicate key error for message: ${message.messageId}. Using alternative approach.`);
+            
+            // First check if the message already exists
+            const existingWithMessage = await Email.findOne({
+              threadId: message.threadId,
+              provider: this.getProviderName(),
+              userEmail: userEmail.toLowerCase(),
+              "messages.messageId": message.messageId
+            });
+            
+            if (existingWithMessage) {
+              console.log(`Message ${message.messageId} already exists in thread. Skipping.`);
+              continue;
+            }
+            
+            // Get the existing thread
+            const existingThread = await Email.findOne({
+              threadId: message.threadId,
+              provider: this.getProviderName(),
+              userEmail: userEmail.toLowerCase()
+            });
+            
+            if (existingThread) {
+              // Add message to existing thread
+              existingThread.messages.push(message);
+              
+              // Update timestamp if needed
+              if (new Date(message.timestamp) > new Date(existingThread.latestTimestamp)) {
+                existingThread.latestTimestamp = new Date(message.timestamp);
+              }
+              
+              // Update participants
+              if (message.sender) existingThread.participants.push(message.sender);
+              if (message.recipient) existingThread.participants.push(message.recipient);
+              existingThread.participants = [...new Set(existingThread.participants)];
+              
+              // Save changes
+              await existingThread.save();
+              console.log(`Added message ${message.messageId} to existing thread using fallback method`);
+            } else {
+              // Create a completely new thread as a last resort
+              console.log(`Creating new thread for ${message.messageId} as last resort`);
+              const newThread = new Email({
+                threadId: message.threadId,
+                subject: message.subject,
+                provider: this.getProviderName(),
+                userEmail: userEmail.toLowerCase(),
+                participants: [message.sender, message.recipient].filter(p => p),
+                messages: [message],
+                latestTimestamp: new Date(message.timestamp)
+              });
+              
+              try {
+                await newThread.save();
+                console.log(`Created new thread for message ${message.messageId} using last resort method`);
+              } catch (finalError) {
+                console.error(`Failed to save message ${message.messageId} after multiple attempts:`, finalError);
+              }
+            }
+          } else {
+            console.error(`Error processing message ${message.messageId}:`, error);
+          }
+        }
       }
 
       this.syncCompleted = true;
@@ -476,12 +563,184 @@ class OutlookService extends EmailService {
   }
 
   /**
+   * Send a reply to an email thread
+   * @param {string} userEmail - The user's email address
+   * @param {string} threadId - The ID of the thread to reply to
+   * @param {string} replyText - The reply message text
+   * @param {Array} [attachments] - Optional array of attachment objects
+   * @returns {Promise<{success: boolean, messageId?: string, error?: string}>} Reply results
+   */
+  async sendReply(userEmail, threadId, replyText, attachments = []) {
+    try {
+      // Find the email thread to get the original message details
+      const thread = await Email.findOne({
+        threadId,
+        provider: this.getProviderName(),
+        userEmail: userEmail.toLowerCase()
+      });
+      
+      if (!thread) {
+        return { success: false, error: "Thread not found" };
+      }
+      
+      // Get access token
+      const accessToken = await this._getAccessToken(userEmail);
+      
+      // Get the original message to reply to
+      const originalMessage = thread.messages[0];
+      
+      // Prepare attachments if any
+      const attachmentData = [];
+      if (attachments && attachments.length > 0) {
+        for (const attachment of attachments) {
+          attachmentData.push({
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            "name": attachment.filename,
+            "contentType": attachment.mimeType,
+            "contentBytes": attachment.content
+          });
+        }
+      }
+      
+      // Create reply payload
+      // Prevent double 'Re:' prefix
+      const subject = thread.subject.startsWith('Re:') ? thread.subject : `Re: ${thread.subject}`;
+      
+      const replyPayload = {
+        message: {
+          subject: subject,
+          body: {
+            contentType: "html",
+            content: replyText
+          },
+          toRecipients: [
+            {
+              emailAddress: {
+                address: originalMessage.sender
+              }
+            }
+          ],
+          attachments: attachmentData
+        },
+        saveToSentItems: true
+      };
+      
+      // Send the reply using Microsoft Graph API
+      const response = await axios.post(
+        `https://graph.microsoft.com/v1.0/me/messages/${originalMessage.messageId}/reply`,
+        replyPayload,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      // Get subject from thread or ensure it has Re: prefix
+      const messageSubject = thread.subject ? 
+        (thread.subject.startsWith('Re:') ? thread.subject : `Re: ${thread.subject}`) : 
+        'Re: No Subject';
+        
+      // Create a new message object for our database
+      const newMessage = {
+        messageId: `reply-${Date.now()}`, // Outlook doesn't return a message ID in the reply response
+        sender: userEmail.toLowerCase(),
+        recipient: originalMessage.sender,
+        subject: messageSubject,
+        body: replyText,
+        timestamp: new Date().toISOString(),
+        isInbound: false,
+        isRead: true,
+        isHtml: true, // Mark as HTML content since we're sending HTML
+        attachments: attachments ? attachments.map(att => ({
+          filename: att.filename,
+          mimeType: att.mimeType,
+          size: att.content ? att.content.length * 0.75 : 0 // Approximate size from base64
+        })) : []
+      };
+      
+      // Update the thread in the database
+      await Email.findOneAndUpdate(
+        { 
+          threadId,
+          provider: this.getProviderName(),
+          userEmail: userEmail.toLowerCase()
+        },
+        {
+          $push: { messages: newMessage },
+          $set: { latestTimestamp: newMessage.timestamp }
+        }
+      );
+      
+      return { 
+        success: true,
+        messageId: newMessage.messageId,
+        message: "Reply sent successfully"
+      };
+    } catch (error) {
+      console.error("Error sending reply:", error);
+      return { 
+        success: false,
+        error: error.message || "Failed to send reply"
+      };
+    }
+  }
+
+  /**
    * Get the provider name
    * @returns {string} The provider name
    */
   getProviderName() {
     return 'outlook';
   }
+
+  /**
+   * Download an attachment from an Outlook message
+   * @param {string} userEmail - The email of the user
+   * @param {string} messageId - The ID of the message containing the attachment
+   * @param {string} attachmentId - The ID of the attachment to download
+   * @returns {Promise<Object>} - The attachment data
+   */
+  async downloadAttachment(userEmail, messageId, attachmentId) {
+    try {
+      // Get access token
+      const tokenDoc = await Token.findOne({ userEmail, provider: this.getProviderName() });
+      if (!tokenDoc) {
+        throw new Error("User not authenticated with Outlook");
+      }
+
+      // Ensure token is valid
+      const accessToken = await this.getValidAccessToken(tokenDoc);
+      if (!accessToken) {
+        throw new Error("Failed to get valid access token");
+      }
+
+      // Get the attachment from Microsoft Graph API
+      const response = await axios.get(
+        `https://graph.microsoft.com/v1.0/me/messages/${messageId}/attachments/${attachmentId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          responseType: 'json'
+        }
+      );
+
+      if (!response || !response.data || !response.data.contentBytes) {
+        throw new Error("Failed to download attachment");
+      }
+
+      return {
+        content: response.data.contentBytes, // Base64 encoded content
+        size: response.data.size
+      };
+    } catch (error) {
+      console.error(`Error downloading attachment: ${error.message}`);
+      throw error;
+    }
+  }
 }
 
-module.exports = new OutlookService();
+module.exports = OutlookService;

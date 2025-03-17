@@ -1,61 +1,123 @@
 const express = require("express");
 const emailServiceFactory = require("../services/emailServiceFactory");
+const Token = require("../models/Token");
 
 const router = express.Router();
 
-// Get available auth providers
-router.get("/auth/providers", (req, res) => {
+// Middleware to validate provider
+const validateProvider = (req, res, next) => {
+  const validProviders = ['gmail', 'outlook'];
+  const provider = req.params.provider?.toLowerCase();
+  
+  if (!provider || !validProviders.includes(provider)) {
+    return res.status(400).json({ 
+      error: "Invalid provider", 
+      message: `Provider must be one of: ${validProviders.join(', ')}`
+    });
+  }
+  req.provider = provider;
+  next();
+};
+
+// Get available auth providers with status
+router.get("/auth/providers", async (req, res) => {
   try {
     const providers = emailServiceFactory.getAvailableProviders();
-    res.json({ success: true, providers });
+    const userEmail = req.query.email?.toLowerCase();
+    
+    if (!userEmail) {
+      return res.json({ success: true, providers });
+    }
+
+    // Get auth status for each provider if email is provided
+    const providerStatus = await Promise.all(providers.map(async (provider) => {
+      const token = await Token.findOne({ userEmail, provider });
+      return {
+        provider,
+        isAuthenticated: token?.isValidAndActive() || false,
+        lastSync: token?.lastSyncTime
+      };
+    }));
+
+    res.json({ success: true, providers: providerStatus });
   } catch (error) {
     res.status(500).json({ error: "Failed to get providers", details: error.message });
   }
 });
 
 // Step 1: Generate OAuth URL for a specific provider
-router.get("/auth/:provider", async (req, res) => {
+router.get("/auth/:provider", validateProvider, async (req, res) => {
   try {
-    const { provider } = req.params;
-    const emailService = emailServiceFactory.getService(provider);
+    const emailService = emailServiceFactory.getService(req.provider);
     const result = await emailService.generateAuthUrl();
     res.json(result);
   } catch (error) {
-    console.error(`Error generating ${req.params.provider} auth URL:`, error);
+    console.error(`Error generating ${req.provider} auth URL:`, error);
     res.status(500).json({ error: "Failed to generate authentication URL", details: error.message });
   }
 });
 
-// Step 2: Handle OAuth Callback for Gmail
-router.get("/auth/gmail/callback", async (req, res) => {
+// Check authentication status
+router.get("/auth/:provider/status", validateProvider, async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    const userEmail = email.toLowerCase();
+    const token = await Token.findOne({ userEmail, provider: req.provider });
+    
+    if (!token) {
+      return res.json({ authenticated: false });
+    }
+
+    // Check if token is valid and not expired
+    const isAuthenticated = token.isValidAndActive();
+    
+    res.json({ 
+      authenticated: isAuthenticated,
+      lastSync: token.lastSyncTime,
+      provider: req.provider
+    });
+  } catch (error) {
+    console.error(`Error checking auth status for ${req.provider}:`, error);
+    res.status(500).json({ error: "Failed to check authentication status", details: error.message });
+  }
+});
+
+// Step 2: Handle OAuth Callback for providers
+router.get("/auth/:provider/callback", validateProvider, async (req, res) => {
   try {
     const { code } = req.query;
-    const emailService = emailServiceFactory.getService('gmail');
+    if (!code) {
+      throw new Error('Authorization code is required');
+    }
+
+    const emailService = emailServiceFactory.getService(req.provider);
     const result = await emailService.handleCallback(code);
 
-    // Redirect and store user email in localStorage on frontend
-    res.redirect(`http://localhost:3000/settings?email=${encodeURIComponent(result.userEmail)}&provider=gmail`);
+    // Redirect to frontend with provider info
+    const redirectUrl = new URL('http://localhost:3000/settings');
+    redirectUrl.searchParams.set('email', result.userEmail);
+    redirectUrl.searchParams.set('provider', req.provider);
+    redirectUrl.searchParams.set('success', 'true');
+    
+    res.redirect(redirectUrl.toString());
   } catch (error) {
-    console.error("OAuth authentication failed:", error);
-    res.status(500).json({ error: "OAuth authentication failed", details: error.message });
+    console.error(`OAuth authentication failed for ${req.provider}:`, error);
+    
+    // Redirect to frontend with error
+    const redirectUrl = new URL('http://localhost:3000/settings');
+    redirectUrl.searchParams.set('error', 'Authentication failed');
+    redirectUrl.searchParams.set('provider', req.provider);
+    
+    res.redirect(redirectUrl.toString());
   }
 });
 
 
-// Step 2: Handle OAuth Callback for Outlook
-router.get("/auth/outlook/callback", async (req, res) => {
-  try {
-    const { code } = req.query;
-    const emailService = emailServiceFactory.getService('outlook');
-    const result = await emailService.handleCallback(code);
 
-    // Redirect and store user email in localStorage on frontend
-    res.redirect(`http://localhost:3000/settings?email=${encodeURIComponent(result.userEmail)}&provider=outlook`);
-  } catch (error) {
-    console.error("OAuth authentication failed:", error);
-    res.status(500).json({ error: "OAuth authentication failed", details: error.message });
-  }
-});
 
 // Step 3: Provide Authentication Status
 router.get("/auth/:provider/status", async (req, res) => {

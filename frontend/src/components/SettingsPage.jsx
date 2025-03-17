@@ -66,19 +66,36 @@ const SettingsPage = () => {
   useEffect(() => {
     const fetchAuthStatuses = async () => {
       const storedEmail = localStorage.getItem("userEmail");
+      const storedProvider = localStorage.getItem("emailProvider");
+      
       if (!storedEmail) return;
+
+      // Store the user email in the auth status for each provider
+      setAuthStatus(prev => ({
+        ...prev,
+        userEmail: storedEmail
+      }));
 
       for (const provider of providers) {
         try {
           const response = await axios.get(`/api/auth/${provider}/status?email=${storedEmail}`);
           
+          // Make sure to include the email in the auth status
           setAuthStatus(prev => ({
             ...prev,
-            [provider]: response.data
+            [provider]: {
+              ...response.data,
+              email: storedEmail // Ensure email is always set
+            }
           }));
 
           // Check if this provider needs initial sync
           if (response.data.authenticated) {
+            // Store the provider in localStorage if it's authenticated
+            if (provider === storedProvider || !storedProvider) {
+              localStorage.setItem("emailProvider", provider);
+            }
+            
             const syncStatusResponse = await axios.get(`/api/email/${provider}/sync-status`);
             setSyncStatus(prev => ({
               ...prev,

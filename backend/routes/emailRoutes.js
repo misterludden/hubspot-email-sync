@@ -1,104 +1,106 @@
 const express = require("express");
-const mongoose = require("mongoose");
+const emailServiceFactory = require("../services/emailServiceFactory");
+const Token = require("../models/Token");
 const Email = require("../models/Email");
 
 const router = express.Router();
 
-// Get all emails
-router.get("/", async (req, res) => {
-  try {
-    const emails = await Email.find().sort({
-      latestTimestamp: -1, // Sort emails by the most recent message
+// Middleware to validate provider
+const validateProvider = (req, res, next) => {
+  const validProviders = ['gmail', 'outlook'];
+  const provider = req.params.provider?.toLowerCase();
+  
+  if (!provider || !validProviders.includes(provider)) {
+    return res.status(400).json({ 
+      error: "Invalid provider", 
+      message: `Provider must be one of: ${validProviders.join(', ')}`
     });
+  }
+  req.provider = provider;
+  next();
+};
+
+// Middleware to validate authentication
+const validateAuth = async (req, res, next) => {
+  const { email } = req.query;
+  if (!email) {
+    return res.status(400).json({ error: "Email parameter is required" });
+  }
+
+  try {
+    const token = await Token.findOne({ 
+      userEmail: email.toLowerCase(), 
+      provider: req.provider,
+      isValid: true
+    });
+
+    if (!token || !token.isValidAndActive()) {
+      return res.status(401).json({ 
+        error: "Authentication required",
+        message: "Please log in again to access your emails"
+      });
+    }
+
+    req.userEmail = email.toLowerCase();
+    req.token = token;
+    next();
+  } catch (error) {
+    console.error(`Auth validation failed for ${req.provider}:`, error);
+    res.status(500).json({ error: "Failed to validate authentication" });
+  }
+};
+
+// Get emails for a specific provider
+router.get("/:provider", validateProvider, validateAuth, async (req, res) => {
+  try {
+    const emails = await Email.find({ 
+      provider: req.provider,
+      userEmail: req.userEmail
+    }).sort({ latestTimestamp: -1 });
+    
     res.json(emails);
   } catch (error) {
-    console.error("Error fetching emails:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error(`Error fetching ${req.provider} emails:`, error);
+    res.status(500).json({ error: "Failed to fetch emails" });
   }
 });
 
-// Get a single email thread by threadId
-router.get("/:threadId", async (req, res) => {
+// Get a single email thread
+router.get("/:provider/thread/:threadId", validateProvider, validateAuth, async (req, res) => {
   try {
-    console.log("Fetching thread:", req.params.threadId);
-    const emailThread = await Email.findOne({ threadId: req.params.threadId });
-    if (!emailThread) return res.status(404).json({ message: "Thread not found" });
+    const emailThread = await Email.findOne({ 
+      threadId: req.params.threadId,
+      provider: req.provider,
+      userEmail: req.userEmail
+    });
+
+    if (!emailThread) {
+      return res.status(404).json({ error: "Thread not found" });
+    }
 
     emailThread.messages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     res.json(emailThread);
   } catch (error) {
-    console.error("Error fetching email thread:", error);
-    res.status(500).json({ message: "Error fetching email thread", error });
+    console.error(`Error fetching ${req.provider} thread:`, error);
+    res.status(500).json({ error: "Failed to fetch email thread" });
   }
 });
 
-// Send a new email (Mock API for now)
-router.post("/send", async (req, res) => {
+// Send a reply
+router.post("/:provider/reply", validateProvider, validateAuth, async (req, res) => {
   try {
-    const { recipient, subject, body } = req.body;
-    if (!recipient || !subject || !body) return res.status(400).json({ message: "Missing required fields" });
-
-    const newEmail = new Email({
-      threadId: new mongoose.Types.ObjectId().toString(),
-      sender: "you@example.com",
-      recipient,
-      subject,
-      messages: [
-        {
-          messageId: new mongoose.Types.ObjectId().toString(),
-          sender: "you@example.com",
-          recipient,
-          subject,
-          body,
-          timestamp: new Date(),
-          isInbound: false,
-        },
-      ],
-      latestTimestamp: new Date(),
-      participants: ["you@example.com", recipient],
-    });
-    await newEmail.save();
-
-    res.status(201).json({ message: "Email sent successfully", email: newEmail });
-  } catch (error) {
-    console.error("Error sending email:", error);
-    res.status(500).json({ message: "Error sending email", error });
-  }
-});
-
-// Add reply to an existing email thread
-router.post("/:threadId/reply", async (req, res) => {
-  try {
-    console.log("Finding email thread with threadId:", req.params.threadId);
-    const emailThread = await Email.findOne({ threadId: req.params.threadId });
-    if (!emailThread) {
-      return res.status(404).json({ error: "Email thread not found" });
+    const { threadId, replyText, attachments } = req.body;
+    if (!threadId || !replyText) {
+      return res.status(400).json({ error: "ThreadId and replyText are required" });
     }
 
-    console.log("Adding reply:", req.body);
-    const { sender, body, isInbound } = req.body;
-    if (!sender || !body) {
-      return res.status(400).json({ error: "Sender and message body are required" });
-    }
-
-    const reply = {
-      messageId: new mongoose.Types.ObjectId().toString(),
-      sender,
-      recipient: emailThread.participants.find((p) => p !== sender) || "unknown",
-      subject: emailThread.subject,
-      body,
-      timestamp: new Date(),
-      isInbound: isInbound !== undefined ? isInbound : false,
-    };
-
-    emailThread.messages.push(reply);
-    emailThread.latestTimestamp = reply.timestamp;
-    await emailThread.save();
-
-    res.json({ success: true, emailThread });
+    const emailService = emailServiceFactory.getService(req.provider);
+    const result = await emailService.sendReply(req.userEmail, threadId, replyText, attachments);
+    
+    res.json(result);
   } catch (error) {
-    console.error("Error saving reply:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error(`Error sending ${req.provider} reply:`, error);
+    res.status(500).json({ error: "Failed to send reply" });
   }
 });
 

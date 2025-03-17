@@ -12,39 +12,75 @@ const EmailDashboard = () => {
   const [emails, setEmails] = useState([]);
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [provider, setProvider] = useState(() => {
+    const storedProvider = localStorage.getItem("emailProvider");
+    return storedProvider?.toLowerCase() || null;
+  });
 
   const fetchEmails = async () => {
+    const currentProvider = localStorage.getItem("emailProvider")?.toLowerCase();
+    const userEmail = localStorage.getItem("userEmail");
+    
+    if (!currentProvider || !userEmail) {
+      setEmails([]);
+      setSelectedEmail(null);
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await axios.get("/api/emails");
-      setEmails(response.data);
+      // Include the email parameter in the request query
+      const response = await axios.get(`/api/emails/${currentProvider}`, {
+        params: { email: userEmail }
+      });
       
-      // If we have a selected email, refresh its data
-      if (selectedEmail) {
-        const updatedEmail = response.data.find(email => email.threadId === selectedEmail.threadId);
-        if (updatedEmail) {
-          setSelectedEmail(updatedEmail);
-        } else {
-          // Email was probably archived or deleted
-          setSelectedEmail(null);
+      if (response.data && Array.isArray(response.data)) {
+        setEmails(response.data);
+        
+        // If we have a selected email, refresh its data
+        if (selectedEmail) {
+          const updatedEmail = response.data.find(email => email.threadId === selectedEmail.threadId);
+          if (updatedEmail) {
+            setSelectedEmail(updatedEmail);
+          } else {
+            // Email was probably archived or deleted
+            setSelectedEmail(null);
+          }
         }
+      } else {
+        setEmails([]);
+        setSelectedEmail(null);
       }
     } catch (error) {
       console.error("Error fetching emails:", error);
+      if (error.response?.status === 401) {
+        // Clear invalid credentials
+        localStorage.removeItem("userEmail");
+        localStorage.removeItem("emailProvider");
+        setEmails([]);
+        setSelectedEmail(null);
+        toast.error("Please log in again to view your emails");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    const currentProvider = localStorage.getItem("emailProvider")?.toLowerCase();
+    if (currentProvider !== provider) {
+      setProvider(currentProvider);
+    }
     fetchEmails();
-    
-    // Set up a refresh interval (every 30 seconds)
+  }, [provider]);
+
+  // Set up auto-refresh
+  useEffect(() => {
+    if (!provider) return;
+
     const intervalId = setInterval(fetchEmails, 30000);
-    
-    // Clean up the interval on component unmount
     return () => clearInterval(intervalId);
-  }, []);
+  }, [provider]);
 
   const handleSelectEmail = (email) => {
     setSelectedEmail(email);
@@ -84,19 +120,25 @@ const EmailDashboard = () => {
       <nav className="nav-bar">
         <button onClick={() => navigate("/settings")}>Settings</button>
       </nav>
-      <div>
-        <h1>Inbox</h1>
-        {loading && <span className="loading-indicator">Loading...</span>}
-      </div>
       <div className="email-section">
-        <EmailList emails={emails} onSelectEmail={handleSelectEmail} />
-        {selectedEmail && (
+        <div className="list-section">
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid #e1e4e8' }}>
+            <h1 style={{ margin: 0, fontSize: '1.25em' }}>Inbox</h1>
+            {loading && <span className="loading-indicator">Loading...</span>}
+          </div>
+          <EmailList 
+            emails={emails} 
+            onSelectEmail={handleSelectEmail} 
+            selectedEmail={selectedEmail}
+          />
+        </div>
+        <div className="detail-section">
           <EmailDetail 
             selectedEmail={selectedEmail} 
             onReply={handleEmailAction} 
             onArchive={handleArchive}
           />
-        )}
+        </div>
       </div>
     </div>
   );

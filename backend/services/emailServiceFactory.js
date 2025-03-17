@@ -1,15 +1,42 @@
-const gmailService = require('./gmailService');
-const outlookService = require('./outlookService');
+const GmailService = require('./gmailService');
+const OutlookService = require('./outlookService');
 
 /**
  * Factory class for creating email service instances
  */
 class EmailServiceFactory {
   constructor() {
-    this.services = {
-      gmail: gmailService,
-      outlook: outlookService
-    };
+    // Initialize service instances
+    this.services = {};
+    
+    // Create singleton instances of each service
+    this.services.gmail = new GmailService();
+    this.services.outlook = new OutlookService();
+    
+    // Validate required environment variables
+    this.validateEnvironment();
+  }
+
+  /**
+   * Validate required environment variables for all providers
+   * @private
+   */
+  validateEnvironment() {
+    // Gmail environment variables
+    const gmailVars = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];
+    gmailVars.forEach(varName => {
+      if (!process.env[varName]) {
+        console.warn(`Warning: ${varName} is not set. Gmail integration may not work properly.`);
+      }
+    });
+
+    // Outlook environment variables
+    const outlookVars = ['OUTLOOK_CLIENT_ID', 'OUTLOOK_CLIENT_SECRET', 'OUTLOOK_TENANT_ID', 'OUTLOOK_REDIRECT_URI'];
+    outlookVars.forEach(varName => {
+      if (!process.env[varName]) {
+        console.warn(`Warning: ${varName} is not set. Outlook integration may not work properly.`);
+      }
+    });
   }
 
   /**
@@ -18,9 +45,9 @@ class EmailServiceFactory {
    * @returns {EmailService} The email service instance
    */
   getService(provider) {
-    const service = this.services[provider];
+    const service = this.services[provider.toLowerCase()];
     if (!service) {
-      throw new Error(`Unsupported email provider: ${provider}`);
+      throw new Error(`Unsupported email provider: ${provider}. Must be one of: gmail, outlook`);
     }
     return service;
   }

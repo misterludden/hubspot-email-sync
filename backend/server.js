@@ -4,6 +4,8 @@ const cors = require("cors");
 const connectDB = require("./database");
 const emailRoutes = require("./routes/emailRoutes");
 const authRoutes = require("./routes/authRoutes");
+const gmailRoutes = require("./routes/gmailRoutes");
+const emailProviderRoutes = require("./routes/emailProviderRoutes");
 
 // Load environment variables
 dotenv.config();
@@ -21,6 +23,8 @@ connectDB();
 // API Routes
 app.use("/api", authRoutes);
 app.use("/api/emails", emailRoutes);
+app.use("/api/gmail", gmailRoutes); // Legacy route, will be deprecated
+app.use("/api/email", emailProviderRoutes); // New generic email provider routes
 
 // Root endpoint
 app.get("/", (req, res) => {

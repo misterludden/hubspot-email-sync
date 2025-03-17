@@ -311,6 +311,7 @@ router.get("/emails/sync-inbox", async (req, res) => {
           body: msgDetail.data.snippet,
           timestamp: new Date(parseInt(msgDetail.data.internalDate)).toISOString(),
           isInbound: getHeader("From") !== userEmail,
+          isRead: !msgDetail.data.labelIds.includes("UNREAD"), // Check Gmail API labels
         };
       })
     );
@@ -362,6 +363,31 @@ router.get("/emails/:id", async (req, res) => {
   } catch (error) {
     console.error("Error fetching email thread:", error);
     res.status(500).json({ error: "Failed to fetch email thread", details: error.message });
+  }
+});
+
+router.post("/auth/archive", async (req, res) => {
+  try {
+    const { threadId, email } = req.body;
+    if (!threadId || !email) return res.status(400).json({ error: "Thread ID and email are required" });
+
+    const gmail = await getAuthenticatedGmailClient(email);
+    if (!gmail) return res.status(401).json({ error: "OAuth tokens missing. Please reconnect your account." });
+
+    // Remove "INBOX" label in Gmail (Archiving)
+    await gmail.users.messages.modify({
+      userId: "me",
+      id: threadId,
+      requestBody: { removeLabelIds: ["INBOX"] },
+    });
+
+    // Update MongoDB
+    await Email.findOneAndUpdate({ threadId }, { isArchived: true });
+
+    res.json({ success: true, message: "Email archived successfully" });
+  } catch (error) {
+    console.error("Error archiving email:", error);
+    res.status(500).json({ error: "Failed to archive email", details: error.message });
   }
 });
 

@@ -72,12 +72,21 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="settings-page">
+    <div className="settings-container">
+      <nav className="nav-bar">
+        <button onClick={() => navigate("/")}>Inbox</button>
+      </nav>
       <h2>Settings</h2>
       {authStatus?.authenticated ? (
         <div>
-          <p>Connected with {authStatus.email}</p>
-          <button onClick={handleDisconnect}>Disconnect</button>
+          <div>
+            <p>
+              Connected with <strong>{authStatus.email}</strong>
+            </p>
+          </div>
+          <div>
+            <button onClick={handleDisconnect}>Disconnect</button>
+          </div>
           <div>
             <label>Sync Emails from Last: </label>
             <select value={syncDays} onChange={(e) => setSyncDays(parseInt(e.target.value))}>
@@ -91,7 +100,6 @@ const SettingsPage = () => {
       ) : (
         <button onClick={() => (window.location.href = authUrl)}>Connect Gmail</button>
       )}
-      <button onClick={() => navigate("/")}>Back to Dashboard</button>
     </div>
   );
 };

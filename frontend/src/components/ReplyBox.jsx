@@ -1,19 +1,25 @@
 import React, { useState } from "react";
+import axios from "axios";
 
 const ReplyBox = ({ email, onReplySent }) => {
   const [reply, setReply] = useState("");
 
   const handleSendReply = async () => {
     if (!reply.trim()) return;
-    const response = await fetch(`/emails/${email._id}/reply`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sender: "me@example.com", message: reply, isInbound: false }),
-    });
-    if (response.ok) {
-      const updatedEmail = await response.json();
-      onReplySent(updatedEmail);
-      setReply("");
+    try {
+      const userEmail = localStorage.getItem("userEmail");
+      const response = await axios.post(`/api/emails/${email.threadId}/reply`, {
+        sender: userEmail || "me@example.com",
+        body: reply,
+        isInbound: false
+      });
+      
+      if (response.data.success) {
+        onReplySent(response.data.emailThread);
+        setReply("");
+      }
+    } catch (error) {
+      console.error("Error sending reply:", error);
     }
   };
 

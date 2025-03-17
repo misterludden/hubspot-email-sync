@@ -209,3 +209,116 @@ body {
   border: none;
   cursor: pointer;
 }
+
+.nav-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #ddd;
+}
+
+.nav-bar button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+
+.nav-bar button:hover {
+  background-color: #0056b3;
+}
+
+.email-list-item {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+  cursor: pointer;
+}
+
+.email-list-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.email-sender {
+  font-weight: bold;
+}
+
+.email-time {
+  color: #777;
+}
+
+.email-thread {
+  margin-top: 20px;
+}
+
+.email-reply {
+  padding: 10px;
+  border-radius: 5px;
+  margin-bottom: 10px;
+}
+
+.email-reply.inbound {
+  background-color: #e1f5fe;
+}
+
+.email-reply.outbound {
+  background-color: #ffebee;
+}
+
+.reply-button {
+  background-color: #ff5c35;
+  color: white;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.reply-box {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.reply-box textarea {
+  width: 100%;
+  height: 80px;
+  padding: 8px;
+  border: 1px solid #ddd;
+}
+
+.reply-box button {
+  margin-top: 5px;
+  background-color: #ff5c35;
+  color: white;
+  padding: 8px;
+  border: none;
+  cursor: pointer;
+}
+
+/* Unread messages are bold */
+.email-list-item.unread {
+  font-weight: bold;
+  background-color: #e3f2fd;
+}
+
+/* Archive button */
+.archive-button {
+  background-color: #999;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.archive-button:hover {
+  background-color: #777;
+}

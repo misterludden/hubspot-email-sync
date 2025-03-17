@@ -8,6 +8,7 @@ const messageSchema = new mongoose.Schema({
   body: String,
   timestamp: Date,
   isInbound: Boolean,
+  isRead: { type: Boolean, default: false },
 });
 
 const emailSchema = new mongoose.Schema({
@@ -16,6 +17,7 @@ const emailSchema = new mongoose.Schema({
   participants: [String], // Keep track of all participants
   latestTimestamp: Date, // Timestamp of the latest message
   messages: [messageSchema], // Store all thread messages in one document
+  isArchived: { type: Boolean, default: false },
 });
 
 module.exports = mongoose.model("Email", emailSchema);

@@ -6,7 +6,6 @@ const router = express.Router();
 
 // Get all emails
 router.get("/", async (req, res) => {
-  console.log("Hitting email API :fire:");
   try {
     const emails = await Email.find().sort({
       latestTimestamp: -1, // Sort emails by the most recent message

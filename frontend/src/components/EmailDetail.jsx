@@ -6,6 +6,25 @@ import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
 
 const EmailDetail = ({ selectedEmail, onReply, onArchive }) => {
+  // Function to get classification badge color
+  const getClassificationColor = (sentiment) => {
+    if (!sentiment) return '#888';
+    switch (sentiment) {
+      case 'Positive': return '#28a745';
+      case 'Negative': return '#dc3545';
+      case 'Neutral': default: return '#6c757d';
+    }
+  };
+
+  // Function to get priority badge color
+  const getPriorityColor = (priority) => {
+    if (!priority) return '#888';
+    switch (priority) {
+      case 'High': return '#dc3545';
+      case 'Medium': return '#ffc107';
+      case 'Low': default: return '#28a745';
+    }
+  };
   if (!selectedEmail) {
     const userEmail = localStorage.getItem("userEmail");
     const provider = localStorage.getItem("emailProvider");
@@ -43,6 +62,7 @@ const EmailDetail = ({ selectedEmail, onReply, onArchive }) => {
   const [archiving, setArchiving] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const [sending, setSending] = useState(false);
+  const [classifying, setClassifying] = useState(false);
   const fileInputRef = useRef(null);
   
   const modules = {
@@ -66,13 +86,45 @@ const EmailDetail = ({ selectedEmail, onReply, onArchive }) => {
     'link'
   ];
   
+  // Store previous email ID to track changes
+  const [previousEmailId, setPreviousEmailId] = useState(null);
+  
   // Reset state when selected email changes
   useEffect(() => {
     setShowReplyBox(false);
     setReplyText("");
     setAttachments([]);
     setSending(false);
+    
+    // Only mark the previous email as read when a new email is selected
+    if (previousEmailId && previousEmailId !== selectedEmail?.threadId && provider && userEmail) {
+      markEmailAsRead(previousEmailId);
+    }
+    
+    // Update the previous email ID
+    setPreviousEmailId(selectedEmail?.threadId);
   }, [selectedEmail?.threadId]);
+  
+  // Function to mark an email as read
+  const markEmailAsRead = async (threadId) => {
+    try {
+      const provider = localStorage.getItem("emailProvider");
+      const userEmail = localStorage.getItem("userEmail");
+      
+      if (!provider || !userEmail || !threadId) {
+        console.error("Missing required data for marking email as read");
+        return;
+      }
+      
+      console.log(`Marking thread ${threadId} as read`);
+      await axios.post(`/api/emails/${provider}/mark-read/${threadId}`, {}, {
+        params: { email: userEmail }
+      });
+    } catch (error) {
+      console.error("Error marking email as read:", error);
+      // Don't show a toast for this error as it's not critical to the user experience
+    }
+  };
 
   const formatDate = (timestamp) => {
     if (!timestamp) return "";
@@ -109,9 +161,14 @@ const EmailDetail = ({ selectedEmail, onReply, onArchive }) => {
     setArchiving(true);
     try {
       const userEmail = localStorage.getItem("userEmail");
-      await axios.post("/api/gmail/archive", {
-        threadId: selectedEmail.threadId,
-        email: userEmail || selectedEmail.recipient,
+      const provider = localStorage.getItem("emailProvider");
+      
+      if (!userEmail || !provider) {
+        throw new Error("User email or provider not found");
+      }
+      
+      await axios.post(`/api/emails/${provider}/archive/${selectedEmail.threadId}`, {}, {
+        params: { email: userEmail }
       });
       
       toast.success("Email archived successfully");
@@ -345,6 +402,43 @@ const EmailDetail = ({ selectedEmail, onReply, onArchive }) => {
             <span className="metadata-value">{formatDate(selectedEmail.latestTimestamp)}</span>
           </div>
         </div>
+        
+        {selectedEmail.classification && (
+          <div className="thread-classification">
+            <h3>Thread Classification</h3>
+            <div className="classification-badges">
+              {selectedEmail.classification.dominantSentiment && (
+                <span 
+                  className="classification-badge sentiment-badge"
+                  style={{ backgroundColor: getClassificationColor(selectedEmail.classification.dominantSentiment) }}
+                >
+                  {selectedEmail.classification.dominantSentiment}
+                </span>
+              )}
+              {selectedEmail.classification.dominantTopic && (
+                <span className="classification-badge topic-badge">
+                  {selectedEmail.classification.dominantTopic}
+                </span>
+              )}
+              {selectedEmail.classification.highestPriority && (
+                <span 
+                  className="classification-badge priority-badge"
+                  style={{ backgroundColor: getPriorityColor(selectedEmail.classification.highestPriority) }}
+                >
+                  {selectedEmail.classification.highestPriority} Priority
+                </span>
+              )}
+            </div>
+            {selectedEmail.classification.keyTopics && selectedEmail.classification.keyTopics.length > 0 && (
+              <div className="key-topics">
+                <span className="key-topics-label">Key Topics:</span>
+                {selectedEmail.classification.keyTopics.map((topic, i) => (
+                  <span key={i} className="key-topic">{topic}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="email-actions">
@@ -455,6 +549,58 @@ const EmailDetail = ({ selectedEmail, onReply, onArchive }) => {
                 {message.isInbound ? selectedEmail.sender : 'You'}
               </span>
               <span className="message-time">{formatDate(message.timestamp)}</span>
+              {message.classification && (
+                <div className="message-classification">
+                  {message.classification.sentiment && (
+                    <span 
+                      className="classification-badge small sentiment-badge"
+                      style={{ backgroundColor: getClassificationColor(message.classification.sentiment) }}
+                      title={`Sentiment Score: ${message.classification.sentimentScore || 0}`}
+                    >
+                      {message.classification.sentiment}
+                    </span>
+                  )}
+                  {message.classification.topic && (
+                    <span className="classification-badge small topic-badge">
+                      {message.classification.topic}
+                    </span>
+                  )}
+                  {message.classification.priority && (
+                    <span 
+                      className="classification-badge small priority-badge"
+                      style={{ backgroundColor: getPriorityColor(message.classification.priority) }}
+                    >
+                      {message.classification.priority}
+                    </span>
+                  )}
+                </div>
+              )}
+              {message.classification && (
+                <div className="message-classification">
+                  {message.classification.sentiment && (
+                    <span 
+                      className="classification-badge small sentiment-badge"
+                      style={{ backgroundColor: getClassificationColor(message.classification.sentiment) }}
+                      title={`Sentiment Score: ${message.classification.sentimentScore || 0}`}
+                    >
+                      {message.classification.sentiment}
+                    </span>
+                  )}
+                  {message.classification.topic && (
+                    <span className="classification-badge small topic-badge">
+                      {message.classification.topic}
+                    </span>
+                  )}
+                  {message.classification.priority && (
+                    <span 
+                      className="classification-badge small priority-badge"
+                      style={{ backgroundColor: getPriorityColor(message.classification.priority) }}
+                    >
+                      {message.classification.priority}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             {/* Always render as HTML if content looks like HTML, fallback to text if not */}
             {(message.isHtml || message.body.includes('<') && message.body.includes('>')) ? (

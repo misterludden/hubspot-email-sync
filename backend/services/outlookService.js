@@ -247,16 +247,37 @@ class OutlookService extends EmailService {
 
       const accessToken = await this._getAccessToken(userEmail);
       
-      const days = options.days || 1;
-      const sinceDate = new Date();
-      sinceDate.setDate(sinceDate.getDate() - days);
-      const isoDate = sinceDate.toISOString();
-
-      console.log(`Fetching messages for ${userEmail} from Outlook API...`);
+      // Determine the time window for fetching messages
+      let filterQuery;
       
-      // Use Microsoft Graph API to get messages
+      if (options.forceFull) {
+        // For full sync, use the specified days parameter
+        const days = options.days || 7;
+        const sinceDate = new Date();
+        sinceDate.setDate(sinceDate.getDate() - days);
+        const isoDate = sinceDate.toISOString();
+        filterQuery = `receivedDateTime ge ${isoDate}`;
+      } else if (options.polling) {
+        // For explicit polling, get very recent messages (last 10 minutes)
+        // This ensures we catch all new messages during polling
+        const tenMinutesAgo = new Date();
+        tenMinutesAgo.setMinutes(tenMinutesAgo.getMinutes() - 10);
+        const isoDate = tenMinutesAgo.toISOString();
+        filterQuery = `receivedDateTime ge ${isoDate}`;
+        console.log(`Polling for Outlook messages after: ${isoDate}`);
+      } else {
+        // For regular polling, get messages from the last hour to ensure we catch recent messages
+        const oneHourAgo = new Date();
+        oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+        const isoDate = oneHourAgo.toISOString();
+        filterQuery = `receivedDateTime ge ${isoDate}`;
+      }
+
+      console.log(`Fetching messages for ${userEmail} from Outlook API with filter: ${filterQuery}...`);
+      
+      // Use Microsoft Graph API to get messages with appropriate filter
       const response = await axios.get(
-        `https://graph.microsoft.com/v1.0/me/messages?$filter=receivedDateTime ge ${isoDate}&$top=100`,
+        `https://graph.microsoft.com/v1.0/me/messages?$filter=${filterQuery}&$top=100&$orderby=receivedDateTime desc`,
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -693,6 +714,96 @@ class OutlookService extends EmailService {
    */
   getProviderName() {
     return 'outlook';
+  }
+
+  /**
+   * Mark a message or thread as read in Outlook
+   * @param {string} userEmail - The user's email address
+   * @param {string} threadId - The ID of the thread to mark as read
+   * @param {string} [messageId] - Optional specific message ID to mark as read
+   * @returns {Promise<Object>} Result of the operation
+   */
+  async markAsRead(userEmail, threadId, messageId = null) {
+    try {
+      if (!threadId || !userEmail) {
+        throw new Error("Thread ID and email are required");
+      }
+
+      const accessToken = await this._getAccessToken(userEmail);
+      
+      if (messageId) {
+        // If specific messageId is provided, only mark that message as read
+        console.log(`Marking specific Outlook message ${messageId} as read`);
+        await axios.patch(
+          `https://graph.microsoft.com/v1.0/me/messages/${messageId}`,
+          { isRead: true },
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      } else {
+        // For Outlook, we need to find all messages in the conversation
+        console.log(`Finding all messages in Outlook conversation ${threadId}`);
+        
+        try {
+          // Get messages with the same conversationId (threadId)
+          const response = await axios.get(
+            `https://graph.microsoft.com/v1.0/me/messages?$filter=conversationId eq '${threadId}'`,
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          const messages = response.data.value || [];
+          console.log(`Found ${messages.length} messages in Outlook conversation ${threadId}`);
+          
+          // Mark each message as read
+          for (const message of messages) {
+            if (!message.isRead) {
+              await axios.patch(
+                `https://graph.microsoft.com/v1.0/me/messages/${message.id}`,
+                { isRead: true },
+                {
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                  }
+                }
+              );
+              console.log(`Marked Outlook message ${message.id} as read`);
+            }
+          }
+        } catch (error) {
+          console.error(`Error finding messages in conversation: ${error.message}`);
+          // Fallback: try to mark the threadId as a message ID (might work in some cases)
+          try {
+            await axios.patch(
+              `https://graph.microsoft.com/v1.0/me/messages/${threadId}`,
+              { isRead: true },
+              {
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json'
+                }
+              }
+            );
+          } catch (fallbackError) {
+            console.error(`Fallback also failed: ${fallbackError.message}`);
+          }
+        }
+      }
+
+      return { success: true, message: "Message marked as read successfully" };
+    } catch (error) {
+      console.error("Error marking message as read:", error);
+      throw new Error(`Failed to mark message as read: ${error.message}`);
+    }
   }
 
   /**

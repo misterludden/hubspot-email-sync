@@ -177,13 +177,41 @@ class GmailService extends EmailService {
       const days = options.days || 1;
       const sinceDate = new Date();
       sinceDate.setDate(sinceDate.getDate() - days);
-      const query = `after:${Math.floor(sinceDate.getTime() / 1000)}`;
+      
+      // Build the query based on options
+      // For regular polling, we want to get ALL recent messages regardless of date
+      // This ensures we don't miss any messages due to timestamp issues
+      let query = "";
+      
+      if (options.forceFull) {
+        // For a full sync, get everything including archived messages
+        // But still respect the date filter
+        query = `after:${Math.floor(sinceDate.getTime() / 1000)} in:anywhere`;
+      } else if (options.polling) {
+        // For explicit polling, get very recent messages (last 10 minutes)
+        // This ensures we catch all new messages during polling
+        const tenMinutesAgo = new Date();
+        tenMinutesAgo.setMinutes(tenMinutesAgo.getMinutes() - 10);
+        
+        // Use after: parameter with a very recent time window
+        // Include all messages regardless of folder to ensure we catch everything
+        query = `after:${Math.floor(tenMinutesAgo.getTime() / 1000)} in:anywhere`;
+        console.log(`Polling for messages after: ${new Date(tenMinutesAgo).toISOString()}`);
+      } else {
+        // For regular background sync, get recent messages from the last hour
+        const oneHourAgo = new Date();
+        oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+        
+        // Use after: parameter to get messages from the last hour
+        // Include inbox, sent, and any messages to/from the user
+        query = `after:${Math.floor(oneHourAgo.getTime() / 1000)} (in:inbox OR in:sent OR from:me OR to:me)`;
+      }
 
-      console.log(`Fetching messages for ${userEmail} from Gmail API...`);
+      console.log(`Fetching messages for ${userEmail} from Gmail API with query: ${query}`);
       const messagesResponse = await gmail.users.messages.list({
         userId: "me",
         q: query,
-        maxResults: 100,
+        maxResults: options.forceFull ? 500 : 250, // Increased for regular polling to ensure we catch all messages
       });
 
       const messages = messagesResponse.data.messages || [];
@@ -215,7 +243,9 @@ class GmailService extends EmailService {
               subject: getHeader("Subject"),
               body: msgDetail.data.snippet,
               timestamp: new Date(parseInt(msgDetail.data.internalDate)).toISOString(),
-              isInbound: getHeader("From") !== userEmail,
+              // Improved check for inbound messages - handles various email formats
+              isInbound: !getHeader("From").toLowerCase().includes(userEmail.toLowerCase()),
+              isRead: !msgDetail.data.labelIds.includes("UNREAD"), // Check Gmail API labels
               provider: this.getProviderName(),
             };
 
@@ -240,38 +270,68 @@ class GmailService extends EmailService {
         console.log(`Processing message: ${message.messageId} | Subject: ${message.subject}`);
 
         try {
-          // Use a single findOneAndUpdate operation with upsert to avoid race conditions
-          // This will either update an existing thread or create a new one atomically
-          const result = await Email.findOneAndUpdate(
-            { 
+          // First check if the thread exists
+          const existingThread = await Email.findOne({
+            threadId: message.threadId,
+            provider: this.getProviderName(),
+            userEmail: userEmail.toLowerCase()
+          });
+          
+          if (existingThread) {
+            // Check if this message already exists in the thread
+            const messageExists = existingThread.messages.some(msg => msg.messageId === message.messageId);
+            
+            if (!messageExists) {
+              // Add the new message to the existing thread
+              const result = await Email.findOneAndUpdate(
+                { _id: existingThread._id },
+                {
+                  $push: { messages: message },
+                  $addToSet: {
+                    participants: { $each: [message.sender, message.recipient].filter(p => p) }
+                  },
+                  $set: { 
+                    // Only update timestamp if this message is newer
+                    latestTimestamp: new Date(message.timestamp) > new Date(existingThread.latestTimestamp) 
+                      ? message.timestamp 
+                      : existingThread.latestTimestamp
+                  }
+                },
+                { new: true }
+              );
+              console.log(`Added new message ${message.messageId} to existing thread ${message.threadId}`);
+            } else {
+              // If message exists but we're doing a force sync, update its read status
+              if (options.forceFull) {
+                await Email.updateOne(
+                  { 
+                    _id: existingThread._id,
+                    "messages.messageId": message.messageId 
+                  },
+                  {
+                    $set: { "messages.$.isRead": message.isRead }
+                  }
+                );
+                console.log(`Updated read status for message ${message.messageId}`);
+              } else {
+                console.log(`Message ${message.messageId} already exists in thread. Skipping.`);
+              }
+            }
+          } else {
+            // Create a new thread with this message
+            const newThread = new Email({
               threadId: message.threadId,
+              subject: message.subject,
               provider: this.getProviderName(),
               userEmail: userEmail.toLowerCase(),
-              "messages.messageId": { $ne: message.messageId } // Only if this message doesn't exist
-            },
-            {
-              $setOnInsert: {
-                threadId: message.threadId,
-                subject: message.subject,
-                provider: this.getProviderName(),
-                userEmail: userEmail.toLowerCase(),
-              },
-              $addToSet: {
-                participants: { $each: [message.sender, message.recipient].filter(p => p) }
-              },
-              $push: { messages: message },
-              $set: { 
-                // Update timestamp if it's more recent
-                latestTimestamp: message.timestamp
-              }
-            },
-            { 
-              upsert: true, 
-              new: true,
-              // Use this option to avoid the duplicate key error
-              runValidators: false
-            }
-          );
+              participants: [message.sender, message.recipient].filter(p => p),
+              messages: [message],
+              latestTimestamp: message.timestamp
+            });
+            
+            await newThread.save();
+            console.log(`Created new thread for message ${message.messageId}`);
+          }
           
           console.log(`Saved message: ${message.messageId} | Subject: ${message.subject}`);
         } catch (error) {
@@ -583,6 +643,46 @@ class GmailService extends EmailService {
       throw new Error(`Failed to archive email: ${error.message}`);
     }
   }
+  
+  /**
+   * Archive a thread in Gmail
+   * @param {string} userEmail - The user's email address
+   * @param {string} threadId - The ID of the thread to archive
+   * @returns {Promise<Object>} Archive results
+   */
+  async archiveThread(userEmail, threadId) {
+    try {
+      if (!threadId || !userEmail) {
+        throw new Error("Thread ID and email are required");
+      }
+
+      const gmail = await this._getAuthenticatedClient(userEmail);
+
+      // Get the thread to find all message IDs
+      const thread = await gmail.users.threads.get({
+        userId: "me",
+        id: threadId
+      });
+      
+      if (!thread.data || !thread.data.messages || thread.data.messages.length === 0) {
+        throw new Error("Thread not found or empty");
+      }
+      
+      // Remove "INBOX" label from all messages in the thread
+      for (const message of thread.data.messages) {
+        await gmail.users.messages.modify({
+          userId: "me",
+          id: message.id,
+          requestBody: { removeLabelIds: ["INBOX"] },
+        });
+      }
+
+      return { success: true, message: "Thread archived successfully" };
+    } catch (error) {
+      console.error("Error archiving thread:", error);
+      throw new Error(`Failed to archive thread: ${error.message}`);
+    }
+  }
 
   /**
    * Send a reply to an email thread
@@ -787,6 +887,74 @@ class GmailService extends EmailService {
    */
   getProviderName() {
     return 'gmail';
+  }
+
+  /**
+   * Mark a message or thread as read in Gmail
+   * @param {string} userEmail - The user's email address
+   * @param {string} threadId - The ID of the thread to mark as read
+   * @param {string} [messageId] - Optional specific message ID to mark as read
+   * @returns {Promise<Object>} Result of the operation
+   */
+  async markAsRead(userEmail, threadId, messageId = null) {
+    try {
+      if (!threadId || !userEmail) {
+        throw new Error("Thread ID and email are required");
+      }
+
+      const gmail = await this._getAuthenticatedClient(userEmail);
+      
+      if (messageId) {
+        // If specific messageId is provided, only mark that message as read
+        console.log(`Marking specific message ${messageId} as read`);
+        await gmail.users.messages.modify({
+          userId: "me",
+          id: messageId,
+          requestBody: { removeLabelIds: ["UNREAD"] },
+        });
+      } else {
+        // Mark the whole thread as read by getting all messages in the thread
+        console.log(`Marking all messages in thread ${threadId} as read`);
+        try {
+          // First get the thread to get all message IDs
+          const threadResponse = await gmail.users.threads.get({
+            userId: "me",
+            id: threadId
+          });
+          
+          // If we have messages in the thread, mark each one as read
+          if (threadResponse.data && threadResponse.data.messages) {
+            const messages = threadResponse.data.messages;
+            console.log(`Found ${messages.length} messages in thread ${threadId}`);
+            
+            // Mark each message as read
+            for (const message of messages) {
+              if (message.labelIds && message.labelIds.includes("UNREAD")) {
+                await gmail.users.messages.modify({
+                  userId: "me",
+                  id: message.id,
+                  requestBody: { removeLabelIds: ["UNREAD"] },
+                });
+                console.log(`Marked message ${message.id} as read`);
+              }
+            }
+          }
+        } catch (threadError) {
+          console.error(`Error getting thread messages: ${threadError.message}`);
+          // Fallback to trying to modify the thread directly
+          await gmail.users.messages.modify({
+            userId: "me",
+            id: threadId,
+            requestBody: { removeLabelIds: ["UNREAD"] },
+          });
+        }
+      }
+
+      return { success: true, message: "Message marked as read successfully" };
+    } catch (error) {
+      console.error("Error marking message as read:", error);
+      throw new Error(`Failed to mark message as read: ${error.message}`);
+    }
   }
 
   /**

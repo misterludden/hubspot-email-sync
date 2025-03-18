@@ -1,14 +1,75 @@
 const express = require("express");
-const emailServiceFactory = require("../services/emailServiceFactory");
+const serviceFactory = require("../services/serviceFactory");
 const router = express.Router();
 
 // Get available providers
 router.get("/providers", (req, res) => {
   try {
-    const providers = emailServiceFactory.getAvailableProviders();
+    const providers = serviceFactory.getAvailableEmailProviders();
     res.json({ success: true, providers });
   } catch (error) {
     res.status(500).json({ error: "Failed to get providers", details: error.message });
+  }
+});
+
+// Get all available integration providers
+router.get("/integration-providers", (req, res) => {
+  try {
+    const providers = serviceFactory.getAvailableIntegrationProviders();
+    res.json({ success: true, providers });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to get integration providers", details: error.message });
+  }
+});
+
+// Add a new route to check authentication status for all providers
+router.get('/auth-status', async (req, res) => {
+  try {
+    const { email } = req.query;
+    
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email is required' });
+    }
+    
+    // Get all available providers
+    const providers = serviceFactory.getAvailableProviders();
+    
+    // Check auth status for each provider
+    const authStatus = {};
+    
+    for (const provider of providers) {
+      try {
+        const service = serviceFactory.getServiceByType('email', provider);
+        if (service) {
+          const isAuthenticated = await service.checkAuthStatus(email);
+          authStatus[provider] = isAuthenticated;
+        } else {
+          authStatus[provider] = false;
+        }
+      } catch (error) {
+        console.error(`Error checking auth status for ${provider}:`, error);
+        authStatus[provider] = false;
+      }
+    }
+    
+    // Also check HubSpot integration if available
+    try {
+      const hubspotService = serviceFactory.getServiceByType('integration', 'hubspot');
+      if (hubspotService) {
+        const isAuthenticated = await hubspotService.checkAuthStatus(email);
+        authStatus.hubspot = isAuthenticated;
+      } else {
+        authStatus.hubspot = false;
+      }
+    } catch (error) {
+      console.error('Error checking HubSpot auth status:', error);
+      authStatus.hubspot = false;
+    }
+    
+    res.json({ success: true, authStatus });
+  } catch (error) {
+    console.error('Error checking auth status:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -22,7 +83,7 @@ router.post("/:provider/sync", async (req, res) => {
       return res.status(400).json({ error: "Email is required" });
     }
     
-    const emailService = emailServiceFactory.getService(provider);
+    const emailService = serviceFactory.getEmailService(provider);
     const result = await emailService.syncEmails(email, { days });
     
     res.json(result);
@@ -36,7 +97,7 @@ router.post("/:provider/sync", async (req, res) => {
 router.get("/:provider/sync-status", async (req, res) => {
   try {
     const { provider } = req.params;
-    const emailService = emailServiceFactory.getService(provider);
+    const emailService = serviceFactory.getEmailService(provider);
     const result = await emailService.getSyncStatus();
     
     res.json(result);
@@ -56,7 +117,7 @@ router.post("/:provider/send", async (req, res) => {
       return res.status(400).json({ error: "Email is required" });
     }
     
-    const emailService = emailServiceFactory.getService(provider);
+    const emailService = serviceFactory.getEmailService(provider);
     const result = await emailService.sendEmail(email, { emailId, recipient, subject, body });
     
     res.json(result);
@@ -76,7 +137,7 @@ router.post("/:provider/archive", async (req, res) => {
       return res.status(400).json({ error: "Thread ID and email are required" });
     }
     
-    const emailService = emailServiceFactory.getService(provider);
+    const emailService = serviceFactory.getEmailService(provider);
     const result = await emailService.archiveEmail(email, threadId);
     
     res.json(result);

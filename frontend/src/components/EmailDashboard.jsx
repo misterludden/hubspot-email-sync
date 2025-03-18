@@ -13,6 +13,8 @@ const EmailDashboard = () => {
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [hubspotSyncing, setHubspotSyncing] = useState(false);
+  const [hubspotAuthenticated, setHubspotAuthenticated] = useState(false);
   const [provider, setProvider] = useState(() => {
     const storedProvider = localStorage.getItem("emailProvider");
     return storedProvider?.toLowerCase() || null;
@@ -98,7 +100,43 @@ const EmailDashboard = () => {
       setProvider(currentProvider);
     }
     fetchEmails();
+    checkAuthStatusForAllProviders();
   }, [provider]);
+
+  // Check authentication status for all providers
+  const checkAuthStatusForAllProviders = async () => {
+    const userEmail = localStorage.getItem("userEmail");
+    if (!userEmail) return;
+    
+    try {
+      const response = await axios.get('/api/email/auth-status', {
+        params: { email: userEmail }
+      });
+      
+      if (response.data.success && response.data.authStatus) {
+        // Update HubSpot authentication status
+        setHubspotAuthenticated(response.data.authStatus.hubspot || false);
+        
+        // If we don't have a provider set but have valid auth for one, set it
+        const currentProvider = localStorage.getItem("emailProvider");
+        if (!currentProvider) {
+          // Check if we have valid auth for any email provider
+          const providers = ['gmail', 'outlook'];
+          for (const p of providers) {
+            if (response.data.authStatus[p]) {
+              console.log(`Found valid authentication for ${p}, setting as current provider`);
+              localStorage.setItem("emailProvider", p);
+              setProvider(p);
+              fetchEmails();
+              break;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error checking authentication status:", error);
+    }
+  };
 
   // Set up auto-refresh
   useEffect(() => {
@@ -166,7 +204,134 @@ const EmailDashboard = () => {
       setSyncing(false);
     }
   };
+  
 
+  
+  // State for tracking HubSpot authentication process
+  const [hubspotAuthLoading, setHubspotAuthLoading] = useState(false);
+
+  // Authenticate with HubSpot
+  const authenticateHubspot = async () => {
+    const userEmail = localStorage.getItem("userEmail");
+    if (!userEmail) {
+      toast.error("Please connect an email account first");
+      return;
+    }
+    
+    try {
+      setHubspotAuthLoading(true);
+      toast.info("Preparing HubSpot authentication...");
+      
+      // Store the user email in the session before redirecting to HubSpot
+      await axios.post('/api/session', { userEmail });
+      console.log("User email stored in session for HubSpot auth");
+      
+      // Get the auth URL
+      const response = await axios.get('/api/hubspot/auth-url');
+      
+      // Show a message to the user before redirecting
+      toast.info("Redirecting to HubSpot. Please approve the requested permissions.", {
+        autoClose: 5000
+      });
+      
+      // Short delay to ensure the user sees the message
+      setTimeout(() => {
+        // Redirect to HubSpot for authentication
+        window.location.href = response.data.authUrl;
+      }, 1500);
+    } catch (error) {
+      console.error("Error starting HubSpot authentication:", error);
+      toast.error("Failed to start HubSpot authentication");
+      setHubspotAuthLoading(false);
+    }
+  };
+  
+  // Sync selected emails to HubSpot
+  const syncToHubspot = async () => {
+    const userEmail = localStorage.getItem("userEmail");
+    if (!userEmail) {
+      toast.error("Please connect an email account first");
+      return;
+    }
+    
+    if (!hubspotAuthenticated) {
+      toast.error("Please authenticate with HubSpot first");
+      return;
+    }
+    
+    if (!selectedEmail) {
+      toast.error("Please select an email to sync");
+      return;
+    }
+    
+    setHubspotSyncing(true);
+    try {
+      // Prepare the email for syncing
+      const emailToSync = {
+        messageId: selectedEmail.id,
+        threadId: selectedEmail.threadId,
+        subject: selectedEmail.subject,
+        sender: selectedEmail.from,
+        recipient: selectedEmail.to,
+        body: selectedEmail.snippet || selectedEmail.body,
+        timestamp: selectedEmail.timestamp,
+        isInbound: selectedEmail.direction === 'inbound'
+      };
+      
+      // Call the sync endpoint
+      const response = await axios.post('/api/hubspot/sync-emails', {
+        userEmail,
+        emails: [emailToSync]
+      });
+      
+      if (response.data.success) {
+        toast.success("Email synced to HubSpot successfully");
+      } else {
+        toast.error("Failed to sync email to HubSpot");
+      }
+    } catch (error) {
+      console.error("Error syncing email to HubSpot:", error);
+      toast.error("Failed to sync email to HubSpot: " + (error.response?.data?.error || error.message));
+    } finally {
+      setHubspotSyncing(false);
+    }
+  };
+
+  // Check for authentication status on component mount and when URL parameters change
+  useEffect(() => {
+    // Check if we're returning from HubSpot OAuth flow
+    const urlParams = new URLSearchParams(window.location.search);
+    const provider = urlParams.get('provider');
+    const authStatus = urlParams.get('auth');
+    
+    if (provider === 'hubspot' && authStatus) {
+      console.log('Detected HubSpot OAuth callback with status:', authStatus);
+      
+      // Clear the URL parameters
+      const url = new URL(window.location.href);
+      url.search = '';
+      window.history.replaceState({}, document.title, url.toString());
+      
+      if (authStatus === 'success') {
+        toast.success('HubSpot connected successfully!');
+        // Add a small delay before checking auth status to ensure backend has completed processing
+        setTimeout(() => {
+          checkAuthStatusForAllProviders(); // Refresh the auth status
+        }, 1000);
+      } else {
+        const errorMessage = urlParams.get('message') || 'Unknown error';
+        console.error('HubSpot authentication error:', errorMessage);
+        toast.error(`HubSpot connection failed: ${errorMessage}`);
+      }
+    }
+  }, []);
+  
+  // Add a second useEffect to handle initial load and check auth status
+  useEffect(() => {
+    // Check authentication status for all providers on initial load
+    checkAuthStatusForAllProviders();
+  }, []);
+  
   return (
     <div className="dashboard-container">
       <ToastContainer
@@ -190,6 +355,27 @@ const EmailDashboard = () => {
           >
             {syncing ? "Syncing..." : "Force Sync"}
           </button>
+          
+          {/* HubSpot Integration Buttons */}
+          <div className="hubspot-integration">
+            {!hubspotAuthenticated ? (
+              <button 
+                onClick={authenticateHubspot}
+                className="hubspot-auth-button"
+                disabled={hubspotAuthLoading}
+              >
+                {hubspotAuthLoading ? "Connecting to HubSpot..." : "Connect HubSpot"}
+              </button>
+            ) : (
+              <button 
+                onClick={syncToHubspot}
+                disabled={hubspotSyncing || !selectedEmail}
+                className={hubspotSyncing ? "syncing" : ""}
+              >
+                {hubspotSyncing ? "Syncing to HubSpot..." : "Sync to HubSpot"}
+              </button>
+            )}
+          </div>
         </div>
       </nav>
       <div className="main-content">

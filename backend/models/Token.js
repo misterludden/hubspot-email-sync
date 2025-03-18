@@ -10,7 +10,7 @@ const tokenSchema = new mongoose.Schema({
   provider: { 
     type: String, 
     required: true, 
-    enum: ['gmail', 'outlook'],
+    enum: ['gmail', 'outlook', 'hubspot'],
     lowercase: true
   },
   tokens: { 

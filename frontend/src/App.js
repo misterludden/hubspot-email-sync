@@ -1,4 +1,4 @@
-import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import { Route, BrowserRouter as Router, Routes, Navigate } from "react-router-dom";
 
 import EmailDashboard from "./components/EmailDashboard";
 import React from "react";
@@ -9,6 +9,7 @@ const App = () => {
     <Router>
       <Routes>
         <Route path="/" element={<EmailDashboard />} />
+        <Route path="/dashboard" element={<EmailDashboard />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </Router>

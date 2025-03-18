@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Middleware to validate provider
 const validateProvider = (req, res, next) => {
-  const validProviders = ['gmail', 'outlook'];
+  const validProviders = ['gmail', 'outlook', 'hubspot'];
   const provider = req.params.provider?.toLowerCase();
   
   if (!provider || !validProviders.includes(provider)) {

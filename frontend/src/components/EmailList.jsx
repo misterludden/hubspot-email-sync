@@ -1,6 +1,11 @@
 import React from "react";
 
 const EmailList = ({ emails, onSelectEmail, selectedEmail }) => {
+  // Helper function to get a clean snippet with a character limit
+  const getSnippet = (snippet, maxLength = 100) => {
+    if (!snippet) return '';
+    return snippet.trim().slice(0, maxLength);
+  };
   // Separate emails into unread and read groups
   const unreadEmails = [];
   const readEmails = [];
@@ -100,7 +105,7 @@ const EmailList = ({ emails, onSelectEmail, selectedEmail }) => {
                       <span className="email-time">{formatDate(email.latestTimestamp)}</span>
                     </div>
                     <div className="email-subject" title={email.subject}>{email.subject}</div>
-                    <div className="email-snippet">{latestMessage?.body?.slice(0, 100)}...</div>
+                    <div className="email-snippet">{getSnippet(latestMessage?.snippet || '')}...</div>
                   </div>
                 );
               })
@@ -130,7 +135,7 @@ const EmailList = ({ emails, onSelectEmail, selectedEmail }) => {
                       <span className="email-time">{formatDate(email.latestTimestamp)}</span>
                     </div>
                     <div className="email-subject" title={email.subject}>{email.subject}</div>
-                    <div className="email-snippet">{latestMessage?.body?.slice(0, 100)}...</div>
+                    <div className="email-snippet">{getSnippet(latestMessage?.snippet || '')}...</div>
                   </div>
                 );
               })

@@ -1,0 +1,174 @@
+.hubspot-email-sync-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.hubspot-email-sync-container h2 {
+  color: #ff7a59;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.sync-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 20px;
+}
+
+.filter-container {
+  flex: 1;
+}
+
+.filter-container input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.select-all-btn, .sync-btn {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  color: white;
+}
+
+.select-all-btn {
+  background-color: #33475b;
+}
+
+.select-all-btn:hover {
+  background-color: #425b76;
+}
+
+.sync-btn {
+  background-color: #ff7a59;
+}
+
+.sync-btn:hover {
+  background-color: #ff8f73;
+}
+
+.sync-btn:disabled, .select-all-btn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.emails-table-container {
+  overflow-x: auto;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.emails-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.emails-table th {
+  background-color: #f5f5f5;
+  padding: 12px 15px;
+  text-align: left;
+  font-weight: bold;
+  color: #33475b;
+  border-bottom: 2px solid #ddd;
+}
+
+.emails-table td {
+  padding: 10px 15px;
+  border-bottom: 1px solid #eee;
+  color: #333;
+}
+
+.emails-table tr:hover {
+  background-color: #f9f9f9;
+}
+
+.emails-table tr.selected {
+  background-color: #e6f3ff;
+}
+
+.select-column {
+  width: 40px;
+  text-align: center;
+}
+
+.subject-column {
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.no-emails {
+  text-align: center;
+  padding: 20px !important;
+  color: #666;
+}
+
+.sync-single-btn {
+  padding: 6px 12px;
+  background-color: #ff7a59;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.sync-single-btn:hover {
+  background-color: #ff8f73;
+}
+
+.sync-single-btn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.load-more {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.load-more button {
+  padding: 10px 20px;
+  background-color: #33475b;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.load-more button:hover {
+  background-color: #425b76;
+}
+
+.load-more button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .sync-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .action-buttons {
+    justify-content: space-between;
+  }
+}

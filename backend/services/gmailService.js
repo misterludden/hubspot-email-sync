@@ -382,6 +382,7 @@ class GmailService extends EmailService {
               recipient: getHeader("To"),
               subject: getHeader("Subject"),
               body: bodyContent, // Use the full content instead of just the snippet
+              snippet: msgDetail.data.snippet || '', // Store the snippet directly from Gmail API
               bodyType: fullHtmlContent ? 'html' : (plainTextContent ? 'text' : 'snippet'),
               timestamp: new Date(parseInt(msgDetail.data.internalDate)).toISOString(),
               // Improved check for inbound messages - handles various email formats
@@ -833,6 +834,42 @@ class GmailService extends EmailService {
    * @param {Array} [attachments] - Optional array of attachment objects
    * @returns {Promise<{success: boolean, messageId?: string, error?: string}>} Reply results
    */
+  /**
+   * Determines the appropriate recipient for a reply
+   * @param {Object} thread - The email thread object
+   * @returns {string} The email address of the appropriate recipient
+   * @private
+   */
+  _determineReplyRecipient(thread) {
+    // If there are no messages, return null
+    if (!thread.messages || thread.messages.length === 0) {
+      return null;
+    }
+    
+    // Get the user's email (the owner of this thread)
+    const userEmail = thread.userEmail.toLowerCase();
+    
+    // Sort messages by timestamp in descending order (newest first)
+    const sortedMessages = [...thread.messages].sort((a, b) => {
+      return new Date(b.timestamp) - new Date(a.timestamp);
+    });
+    
+    // Find the most recent message not sent by the user
+    for (const message of sortedMessages) {
+      if (message.sender && message.sender.toLowerCase() !== userEmail) {
+        return message.sender;
+      }
+    }
+    
+    // If all messages are from the user, use the recipient of the most recent message
+    if (sortedMessages[0].recipient && sortedMessages[0].recipient.toLowerCase() !== userEmail) {
+      return sortedMessages[0].recipient;
+    }
+    
+    // Fallback to the original sender of the first message
+    return thread.messages[0].sender;
+  }
+
   async sendReply(userEmail, threadId, replyText, attachments = []) {
     try {
       // Find the email thread to get the original message details
@@ -890,7 +927,7 @@ class GmailService extends EmailService {
         const newMessage = {
           messageId: messageResponse.data.id,
           sender: userEmail.toLowerCase(),
-          recipient: thread.messages[0].sender, // Reply to the original sender
+          recipient: this._determineReplyRecipient(thread), // Reply to the appropriate recipient
           subject: messageSubject,
           body: replyText,
           timestamp: new Date().toISOString(),

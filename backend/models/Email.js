@@ -13,6 +13,7 @@ const messageSchema = new mongoose.Schema({
   recipient: String,
   subject: String,
   body: String,
+  snippet: String, // Plain text snippet for preview
   timestamp: Date,
   isInbound: Boolean,
   isRead: { type: Boolean, default: false },

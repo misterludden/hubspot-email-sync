@@ -299,7 +299,7 @@ class OutlookService extends EmailService {
           try {
             // Get full message details if needed
             const messageDetail = await axios.get(
-              `https://graph.microsoft.com/v1.0/me/messages/${msg.id}?$select=id,conversationId,subject,bodyPreview,from,toRecipients,receivedDateTime`,
+              `https://graph.microsoft.com/v1.0/me/messages/${msg.id}?$select=id,conversationId,subject,bodyPreview,body,from,toRecipients,receivedDateTime`,
               {
                 headers: {
                   Authorization: `Bearer ${accessToken}`,
@@ -316,7 +316,8 @@ class OutlookService extends EmailService {
               sender: detail.from.emailAddress.address,
               recipient: detail.toRecipients.map(r => r.emailAddress.address).join(', '),
               subject: detail.subject,
-              body: detail.bodyPreview,
+              body: detail.body ? detail.body.content : detail.bodyPreview,
+              snippet: detail.bodyPreview || '', // Store the bodyPreview as the snippet
               timestamp: new Date(detail.receivedDateTime).toISOString(),
               isInbound: detail.from.emailAddress.address !== userEmail,
               provider: this.getProviderName(),
@@ -591,6 +592,42 @@ class OutlookService extends EmailService {
    * @param {Array} [attachments] - Optional array of attachment objects
    * @returns {Promise<{success: boolean, messageId?: string, error?: string}>} Reply results
    */
+  /**
+   * Determines the appropriate recipient for a reply
+   * @param {Object} thread - The email thread object
+   * @returns {string} The email address of the appropriate recipient
+   * @private
+   */
+  _determineReplyRecipient(thread) {
+    // If there are no messages, return null
+    if (!thread.messages || thread.messages.length === 0) {
+      return null;
+    }
+    
+    // Get the user's email (the owner of this thread)
+    const userEmail = thread.userEmail.toLowerCase();
+    
+    // Sort messages by timestamp in descending order (newest first)
+    const sortedMessages = [...thread.messages].sort((a, b) => {
+      return new Date(b.timestamp) - new Date(a.timestamp);
+    });
+    
+    // Find the most recent message not sent by the user
+    for (const message of sortedMessages) {
+      if (message.sender && message.sender.toLowerCase() !== userEmail) {
+        return message.sender;
+      }
+    }
+    
+    // If all messages are from the user, use the recipient of the most recent message
+    if (sortedMessages[0].recipient && sortedMessages[0].recipient.toLowerCase() !== userEmail) {
+      return sortedMessages[0].recipient;
+    }
+    
+    // Fallback to the original sender of the first message
+    return thread.messages[0].sender;
+  }
+
   async sendReply(userEmail, threadId, replyText, attachments = []) {
     try {
       // Find the email thread to get the original message details
@@ -607,8 +644,14 @@ class OutlookService extends EmailService {
       // Get access token
       const accessToken = await this._getAccessToken(userEmail);
       
-      // Get the original message to reply to
-      const originalMessage = thread.messages[0];
+      // Get the appropriate recipient for the reply
+      const replyRecipient = this._determineReplyRecipient(thread);
+      
+      // Get the most recent message in the thread
+      const sortedMessages = [...thread.messages].sort((a, b) => {
+        return new Date(b.timestamp) - new Date(a.timestamp);
+      });
+      const originalMessage = sortedMessages[0];
       
       // Prepare attachments if any
       const attachmentData = [];
@@ -637,7 +680,7 @@ class OutlookService extends EmailService {
           toRecipients: [
             {
               emailAddress: {
-                address: originalMessage.sender
+                address: replyRecipient
               }
             }
           ],

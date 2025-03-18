@@ -11,6 +11,7 @@
     },
     "dependencies": {
         "@azure/msal-node": "^2.6.4",
+        "@hubspot/api-client": "^12.0.1",
         "@nlpjs/core": "^4.26.1",
         "@nlpjs/lang-en": "^4.26.1",
         "@nlpjs/ner": "^5.0.0-alpha.5",

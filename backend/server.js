@@ -9,6 +9,7 @@ const gmailRoutes = require("./routes/gmailRoutes");
 const emailProviderRoutes = require("./routes/emailProviderRoutes");
 const attachmentRoutes = require("./routes/attachmentRoutes");
 const hubspotRoutes = require("./routes/hubspotRoutes");
+const hubspotIntegrationRoutes = require("./routes/hubspotIntegrationRoutes");
 
 // Load environment variables
 dotenv.config();
@@ -64,7 +65,8 @@ app.use("/api/emails", emailRoutes);
 app.use("/api/gmail", gmailRoutes); // Legacy route, will be deprecated
 app.use("/api/email", emailProviderRoutes); // New generic email provider routes
 app.use("/api/attachments", attachmentRoutes); // Routes for handling attachments
-app.use("/api", hubspotRoutes); // HubSpot integration routes
+app.use("/api", hubspotRoutes); // HubSpot OAuth routes
+app.use("/api", hubspotIntegrationRoutes); // HubSpot CRM integration routes
 
 // Root endpoint
 app.get("/", (req, res) => {

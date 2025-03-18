@@ -11,7 +11,7 @@ build/
 .env.development
 .env.production
 
-#google api creds
+#creds
 credentials.json
 
 # testdata
@@ -32,3 +32,4 @@ mongodb/
 .idea/
 .DS_Store
 Thumbs.db
+.windsurfrules

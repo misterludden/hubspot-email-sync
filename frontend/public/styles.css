@@ -863,6 +863,48 @@ body {
   word-break: break-word;
 }
 
+/* HTML email content styling */
+.html-content {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: normal;
+}
+
+/* Ensure images in emails are properly contained */
+.html-content img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Style tables in emails */
+.html-content table {
+  max-width: 100%;
+  border-collapse: collapse;
+}
+
+/* Style links in emails */
+.html-content a {
+  color: #0366d6;
+  text-decoration: underline;
+}
+
+/* Ensure blockquotes are styled properly */
+.html-content blockquote {
+  border-left: 3px solid #ddd;
+  margin-left: 10px;
+  padding-left: 10px;
+  color: #586069;
+}
+
+/* Handle pre-formatted text */
+.html-content pre {
+  background-color: #f6f8fa;
+  border-radius: 3px;
+  padding: 10px;
+  overflow-x: auto;
+  font-family: monospace;
+}
+
 
 
 .email-list-item.unread {

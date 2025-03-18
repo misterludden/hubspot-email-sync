@@ -108,7 +108,7 @@ const EmailDashboard = () => {
     fetchEmails(false); // Initial load without polling
     
     // Then set up polling every 15 seconds using the polling endpoint
-    const intervalId = setInterval(() => fetchEmails(true), 15000);
+    const intervalId = setInterval(() => fetchEmails(true), 30000);
     return () => clearInterval(intervalId);
   }, [provider]);
 

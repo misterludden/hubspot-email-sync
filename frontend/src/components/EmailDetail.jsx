@@ -670,21 +670,24 @@ const EmailDetail = ({ selectedEmail, onReply, onArchive }) => {
                 </div>
               )}
             </div>
-            {/* Always render as HTML if content looks like HTML, fallback to text if not */}
-            {(message.isHtml || message.body.includes('<') && message.body.includes('>')) ? (
+            {/* Render based on the bodyType from the server or detect HTML content */}
+            {(message.bodyType === 'html' || 
+              (message.body && message.body.includes('<') && message.body.includes('>'))) ? (
               <div 
                 className="message-content html-content" 
                 dangerouslySetInnerHTML={{ 
                   __html: message.body
-                    .replace(/&lt;/g, '<')
-                    .replace(/&gt;/g, '>')
-                    .replace(/&amp;/g, '&')
-                    .replace(/&#39;/g, "'")
-                    .replace(/&quot;/g, '"')
                 }}
               />
             ) : (
-              <div className="message-content">{message.body}</div>
+              <div className="message-content">
+                {message.body && message.body.split('\n').map((line, i) => (
+                  <React.Fragment key={i}>
+                    {line}
+                    <br />
+                  </React.Fragment>
+                ))}
+              </div>
             )}
             
             {message.attachments && message.attachments.length > 0 && (

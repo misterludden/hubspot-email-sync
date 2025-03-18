@@ -96,14 +96,36 @@ router.get("/auth/:provider/callback", validateProvider, async (req, res) => {
 
     const emailService = emailServiceFactory.getService(req.provider);
     const result = await emailService.handleCallback(code);
-
-    // Redirect to frontend with provider info
-    const redirectUrl = new URL('http://localhost:3000/settings');
-    redirectUrl.searchParams.set('email', result.userEmail);
-    redirectUrl.searchParams.set('provider', req.provider);
-    redirectUrl.searchParams.set('success', 'true');
     
-    res.redirect(redirectUrl.toString());
+    // Only allow one email provider to be connected at a time
+    // If this is an email provider (not hubspot), disconnect any other email providers
+    if (req.provider !== 'hubspot') {
+      const emailProviders = ['gmail', 'outlook'];
+      const otherProviders = emailProviders.filter(p => p !== req.provider);
+      
+      // Find and delete tokens for other email providers
+      await Token.deleteMany({
+        userEmail: result.userEmail,
+        provider: { $in: otherProviders }
+      });
+      
+      // Store the current provider in localStorage via client-side script
+      const redirectUrl = new URL('http://localhost:3000/settings');
+      redirectUrl.searchParams.set('email', result.userEmail);
+      redirectUrl.searchParams.set('provider', req.provider);
+      redirectUrl.searchParams.set('success', 'true');
+      redirectUrl.searchParams.set('exclusive', 'true'); // Flag to indicate this is the only connected provider
+      
+      res.redirect(redirectUrl.toString());
+    } else {
+      // For HubSpot, just redirect normally
+      const redirectUrl = new URL('http://localhost:3000/settings');
+      redirectUrl.searchParams.set('email', result.userEmail);
+      redirectUrl.searchParams.set('provider', req.provider);
+      redirectUrl.searchParams.set('success', 'true');
+      
+      res.redirect(redirectUrl.toString());
+    }
   } catch (error) {
     console.error(`OAuth authentication failed for ${req.provider}:`, error);
     

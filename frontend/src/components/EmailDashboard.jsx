@@ -172,79 +172,44 @@ const EmailDashboard = () => {
     fetchEmails();
   };
   
-  // Force sync emails from the server
-  const forceSync = async () => {
-    const currentProvider = localStorage.getItem("emailProvider")?.toLowerCase();
+  // We've moved the Force Sync and Connect to HubSpot functionality to the Settings page
+  // These states are kept for displaying connection status
+  const [connectionStatus, setConnectionStatus] = useState({
+    provider: localStorage.getItem("emailProvider") || null,
+    hubspot: false
+  });
+
+  // Check connection status for all providers
+  const checkConnectionStatus = async () => {
     const userEmail = localStorage.getItem("userEmail");
+    if (!userEmail) return;
     
-    if (!currentProvider || !userEmail) {
-      toast.error("No email account connected");
-      return;
-    }
-    
-    setSyncing(true);
     try {
-      // Call the sync endpoint
-      await axios.post(`/api/emails/${currentProvider}/sync`, {
-        days: 7 // Sync last 7 days
-      }, {
+      const response = await axios.get('/api/email/auth-status', {
         params: { email: userEmail }
       });
       
-      toast.success("Email sync initiated");
-      
-      // Fetch emails after a short delay to allow sync to complete
-      setTimeout(() => {
-        fetchEmails();
-        setSyncing(false);
-      }, 3000);
+      if (response.data.success && response.data.authStatus) {
+        // Update HubSpot authentication status
+        setHubspotAuthenticated(response.data.authStatus.hubspot || false);
+        setConnectionStatus(prev => ({
+          ...prev,
+          hubspot: response.data.authStatus.hubspot || false
+        }));
+      }
     } catch (error) {
-      console.error("Error syncing emails:", error);
-      toast.error("Failed to sync emails");
-      setSyncing(false);
+      console.error("Error checking connection status:", error);
     }
   };
   
-
-  
-  // State for tracking HubSpot authentication process
-  const [hubspotAuthLoading, setHubspotAuthLoading] = useState(false);
-
-  // Authenticate with HubSpot
-  const authenticateHubspot = async () => {
-    const userEmail = localStorage.getItem("userEmail");
-    if (!userEmail) {
-      toast.error("Please connect an email account first");
-      return;
-    }
-    
-    try {
-      setHubspotAuthLoading(true);
-      toast.info("Preparing HubSpot authentication...");
-      
-      // Store the user email in the session before redirecting to HubSpot
-      await axios.post('/api/session', { userEmail });
-      console.log("User email stored in session for HubSpot auth");
-      
-      // Get the auth URL
-      const response = await axios.get('/api/hubspot/auth-url');
-      
-      // Show a message to the user before redirecting
-      toast.info("Redirecting to HubSpot. Please approve the requested permissions.", {
-        autoClose: 5000
-      });
-      
-      // Short delay to ensure the user sees the message
-      setTimeout(() => {
-        // Redirect to HubSpot for authentication
-        window.location.href = response.data.authUrl;
-      }, 1500);
-    } catch (error) {
-      console.error("Error starting HubSpot authentication:", error);
-      toast.error("Failed to start HubSpot authentication");
-      setHubspotAuthLoading(false);
-    }
-  };
+  // Update connection status when provider changes
+  useEffect(() => {
+    setConnectionStatus(prev => ({
+      ...prev,
+      provider: provider
+    }));
+    checkConnectionStatus();
+  }, [provider]);
   
   // Sync selected emails to HubSpot
   const syncToHubspot = async () => {
@@ -348,34 +313,44 @@ const EmailDashboard = () => {
       <nav className="nav-bar">
         <div className="nav-buttons">
           <button onClick={() => navigate("/settings")}>Settings</button>
-          <button 
-            onClick={forceSync} 
-            disabled={syncing || loading}
-            className={syncing ? "syncing" : ""}
-          >
-            {syncing ? "Syncing..." : "Force Sync"}
-          </button>
           
-          {/* HubSpot Integration Buttons */}
-          <div className="hubspot-integration">
-            {!hubspotAuthenticated ? (
-              <button 
-                onClick={authenticateHubspot}
-                className="hubspot-auth-button"
-                disabled={hubspotAuthLoading}
-              >
-                {hubspotAuthLoading ? "Connecting to HubSpot..." : "Connect HubSpot"}
-              </button>
+          {/* Connection Status Indicators */}
+          <div className="connection-status">
+            {connectionStatus.provider ? (
+              <div className="provider-status connected">
+                <span className="status-indicator">✓</span>
+                <span className="status-text">{connectionStatus.provider.charAt(0).toUpperCase() + connectionStatus.provider.slice(1)} Connected</span>
+              </div>
             ) : (
-              <button 
-                onClick={syncToHubspot}
-                disabled={hubspotSyncing || !selectedEmail}
-                className={hubspotSyncing ? "syncing" : ""}
-              >
-                {hubspotSyncing ? "Syncing to HubSpot..." : "Sync to HubSpot"}
-              </button>
+              <div className="provider-status disconnected">
+                <span className="status-indicator">⚠</span>
+                <span className="status-text">No Email Provider Connected</span>
+              </div>
+            )}
+            
+            {connectionStatus.hubspot ? (
+              <div className="hubspot-status connected">
+                <span className="status-indicator">✓</span>
+                <span className="status-text">HubSpot Connected</span>
+              </div>
+            ) : (
+              <div className="hubspot-status disconnected">
+                <span className="status-indicator">⚠</span>
+                <span className="status-text">HubSpot Not Connected</span>
+              </div>
             )}
           </div>
+          
+          {/* Keep the Sync to HubSpot button for selected emails */}
+          {hubspotAuthenticated && selectedEmail && (
+            <button 
+              onClick={syncToHubspot}
+              disabled={hubspotSyncing || !selectedEmail}
+              className={hubspotSyncing ? "syncing" : ""}
+            >
+              {hubspotSyncing ? "Syncing to HubSpot..." : "Sync to HubSpot"}
+            </button>
+          )}
         </div>
       </nav>
       <div className="main-content">

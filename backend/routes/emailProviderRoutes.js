@@ -31,16 +31,17 @@ router.get('/auth-status', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Email is required' });
     }
     
-    // Get all available providers
-    const providers = serviceFactory.getAvailableProviders();
+    // Get all available email providers (not integration providers like HubSpot)
+    const emailProviders = serviceFactory.getAvailableEmailProviders();
     
-    // Check auth status for each provider
+    // Check auth status for each email provider
     const authStatus = {};
     
-    for (const provider of providers) {
+    for (const provider of emailProviders) {
       try {
-        const service = serviceFactory.getServiceByType('email', provider);
-        if (service) {
+        const ServiceClass = serviceFactory.getEmailService(provider);
+        if (ServiceClass) {
+          const service = new ServiceClass();
           const isAuthenticated = await service.checkAuthStatus(email);
           authStatus[provider] = isAuthenticated;
         } else {
@@ -54,8 +55,10 @@ router.get('/auth-status', async (req, res) => {
     
     // Also check HubSpot integration if available
     try {
-      const hubspotService = serviceFactory.getServiceByType('integration', 'hubspot');
-      if (hubspotService) {
+      // Use getIntegrationService for HubSpot as it's a CRM, not an email provider
+      const HubspotServiceClass = serviceFactory.getIntegrationService('hubspot');
+      if (HubspotServiceClass) {
+        const hubspotService = new HubspotServiceClass();
         const isAuthenticated = await hubspotService.checkAuthStatus(email);
         authStatus.hubspot = isAuthenticated;
       } else {

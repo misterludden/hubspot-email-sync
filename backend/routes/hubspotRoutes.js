@@ -27,13 +27,13 @@ router.get('/hubspot/callback', async (req, res) => {
     
     if (!code) {
       console.error('No authorization code received from HubSpot');
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard?provider=hubspot&auth=error&message=${encodeURIComponent('No authorization code received')}`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/settings?provider=hubspot&auth=error&message=${encodeURIComponent('No authorization code received')}`);
     }
     
     if (!userEmail) {
       console.error('No user email found in session');
       // Try to handle the case where session is lost
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard?provider=hubspot&auth=error&message=${encodeURIComponent('Session expired or user email not found - please try again')}`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/settings?provider=hubspot&auth=error&message=${encodeURIComponent('Session expired or user email not found - please try again')}`);
     }
     
     // Exchange the code for tokens
@@ -43,19 +43,23 @@ router.get('/hubspot/callback', async (req, res) => {
     
     // Store success in session to ensure it persists
     req.session.hubspotAuthenticated = true;
+    
+    // Save session before redirecting to ensure it's persisted
     req.session.save((err) => {
       if (err) {
         console.error('Error saving session:', err);
+        return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/settings?provider=hubspot&auth=error&message=${encodeURIComponent('Failed to save session')}`);
       }
-      // Redirect to the frontend with success
-      console.log('Redirecting to dashboard with success');
-      res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard?provider=hubspot&auth=success`);
+      
+      // Redirect to the settings page with success
+      console.log('Redirecting to settings with success');
+      res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/settings?provider=hubspot&auth=success`);
     });
   } catch (error) {
     console.error('Error handling HubSpot OAuth callback:', error);
     console.error('Stack trace:', error.stack);
     // Redirect to the frontend with error
-    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard?provider=hubspot&auth=error&message=${encodeURIComponent(error.message || 'Unknown error occurred')}`);
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/settings?provider=hubspot&auth=error&message=${encodeURIComponent(error.message || 'Unknown error occurred')}`);
   }
 });
 

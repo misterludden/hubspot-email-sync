@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const SettingsPage = () => {
   const [providers, setProviders] = useState([]);
-  const [selectedProvider, setSelectedProvider] = useState('gmail');
+  const [selectedProvider, setSelectedProvider] = useState("gmail");
   const [authUrls, setAuthUrls] = useState({});
   const [authStatus, setAuthStatus] = useState({});
   const [syncDays, setSyncDays] = useState(1);
   const [syncStatus, setSyncStatus] = useState({});
   const [initialSyncRequired, setInitialSyncRequired] = useState({});
+  const [hubspotStatus, setHubspotStatus] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     // Fetch available providers
@@ -36,11 +38,11 @@ const SettingsPage = () => {
       localStorage.setItem("userEmail", userEmailFromURL);
       localStorage.setItem("provider", providerFromURL);
       setSelectedProvider(providerFromURL);
-      
+
       // Set initial sync required flag for this provider
-      setInitialSyncRequired(prev => ({
+      setInitialSyncRequired((prev) => ({
         ...prev,
-        [providerFromURL]: true
+        [providerFromURL]: true,
       }));
     }
   }, []);
@@ -48,13 +50,13 @@ const SettingsPage = () => {
   // Fetch auth URLs for all providers
   useEffect(() => {
     if (providers.length > 0) {
-      providers.forEach(provider => {
+      providers.forEach((provider) => {
         axios
           .get(`/api/auth/${provider}`)
           .then((response) => {
-            setAuthUrls(prev => ({
+            setAuthUrls((prev) => ({
               ...prev,
-              [provider]: response.data.url
+              [provider]: response.data.url,
             }));
           })
           .catch((error) => console.error(`Error fetching ${provider} OAuth URL:`, error));
@@ -67,26 +69,26 @@ const SettingsPage = () => {
     const fetchAuthStatuses = async () => {
       const storedEmail = localStorage.getItem("userEmail");
       const storedProvider = localStorage.getItem("emailProvider");
-      
+
       if (!storedEmail) return;
 
       // Store the user email in the auth status for each provider
-      setAuthStatus(prev => ({
+      setAuthStatus((prev) => ({
         ...prev,
-        userEmail: storedEmail
+        userEmail: storedEmail,
       }));
 
       for (const provider of providers) {
         try {
           const response = await axios.get(`/api/auth/${provider}/status?email=${storedEmail}`);
-          
+
           // Make sure to include the email in the auth status
-          setAuthStatus(prev => ({
+          setAuthStatus((prev) => ({
             ...prev,
             [provider]: {
               ...response.data,
-              email: storedEmail // Ensure email is always set
-            }
+              email: storedEmail, // Ensure email is always set
+            },
           }));
 
           // Check if this provider needs initial sync
@@ -95,18 +97,18 @@ const SettingsPage = () => {
             if (provider === storedProvider || !storedProvider) {
               localStorage.setItem("emailProvider", provider);
             }
-            
+
             const syncStatusResponse = await axios.get(`/api/email/${provider}/sync-status`);
-            setSyncStatus(prev => ({
+            setSyncStatus((prev) => ({
               ...prev,
-              [provider]: syncStatusResponse.data
+              [provider]: syncStatusResponse.data,
             }));
 
             // If not synced yet, mark as requiring initial sync
             if (!syncStatusResponse.data.synced) {
-              setInitialSyncRequired(prev => ({
+              setInitialSyncRequired((prev) => ({
                 ...prev,
-                [provider]: true
+                [provider]: true,
               }));
             }
           }
@@ -123,32 +125,35 @@ const SettingsPage = () => {
 
   const handleDisconnect = (provider) => {
     const userEmail = authStatus[provider]?.email || localStorage.getItem("userEmail");
-    
+
     if (!userEmail) {
       console.error("No email found for disconnecting.");
       return;
     }
-    
+
     axios
       .post(`/api/auth/${provider}/disconnect`, { email: userEmail })
       .then(() => {
         // Update only the specific provider's auth status
-        setAuthStatus(prev => ({
+        setAuthStatus((prev) => ({
           ...prev,
-          [provider]: { authenticated: false }
+          [provider]: { authenticated: false },
         }));
-        
+
         // Clear sync status for this provider
-        setSyncStatus(prev => ({
+        setSyncStatus((prev) => ({
           ...prev,
-          [provider]: null
+          [provider]: null,
         }));
-        
+
+        // Clear email provider from localStorage
+        localStorage.removeItem("emailProvider");
+
         // If this was the last connected provider, clear email from localStorage
         const stillConnected = Object.values(authStatus).some(
           (status, key) => key !== provider && status?.authenticated
         );
-        
+
         if (!stillConnected) {
           localStorage.removeItem("userEmail");
         }
@@ -171,19 +176,19 @@ const SettingsPage = () => {
       .post(`/api/email/${provider}/sync`, { email: userEmail, days })
       .then((response) => {
         console.log(`${provider} sync initiated:`, response.data);
-        
+
         // Mark this provider as no longer requiring initial sync
-        setInitialSyncRequired(prev => ({
+        setInitialSyncRequired((prev) => ({
           ...prev,
-          [provider]: false
+          [provider]: false,
         }));
-        
+
         // Update sync status
-        setSyncStatus(prev => ({
+        setSyncStatus((prev) => ({
           ...prev,
-          [provider]: { syncing: true }
+          [provider]: { syncing: true },
         }));
-        
+
         // Check sync status after a delay
         setTimeout(() => checkSyncStatus(provider), 2000);
       })
@@ -191,16 +196,16 @@ const SettingsPage = () => {
         console.error(`Error syncing ${provider} emails:`, error.response ? error.response.data : error);
       });
   };
-  
+
   const checkSyncStatus = (provider) => {
     axios
       .get(`/api/email/${provider}/sync-status`)
       .then((response) => {
-        setSyncStatus(prev => ({
+        setSyncStatus((prev) => ({
           ...prev,
-          [provider]: response.data
+          [provider]: response.data,
         }));
-        
+
         // If still syncing, check again after a delay
         if (!response.data.synced) {
           setTimeout(() => checkSyncStatus(provider), 2000);
@@ -211,21 +216,130 @@ const SettingsPage = () => {
       });
   };
 
+  // Force sync emails from the server
+  const handleForceSync = async () => {
+    const currentProvider = localStorage.getItem("emailProvider")?.toLowerCase();
+    const userEmail = localStorage.getItem("userEmail");
+
+    if (!currentProvider || !userEmail) {
+      alert("No email account connected");
+      return;
+    }
+
+    try {
+      // Call the sync endpoint
+      await axios.post(`/api/emails/${currentProvider}/sync`, {
+        email: userEmail,
+        days: syncDays,
+      });
+
+      alert("Email sync initiated");
+    } catch (error) {
+      console.error("Error syncing emails:", error);
+      alert("Failed to sync emails");
+    }
+  };
+
+  // Connect to HubSpot
+  const handleConnectHubSpot = async () => {
+    const userEmail = localStorage.getItem("userEmail");
+    if (!userEmail) {
+      alert("Please connect an email account first");
+      return;
+    }
+
+    try {
+      // First ensure the user email is stored in the session
+      await axios.post('/api/session', { userEmail });
+      console.log('User email stored in session before HubSpot auth');
+      
+      // Get the HubSpot auth URL
+      const response = await axios.get("/api/hubspot/auth-url");
+      console.log('Received HubSpot auth URL');
+
+      // Redirect to HubSpot for authentication
+      window.location.href = response.data.authUrl;
+    } catch (error) {
+      console.error("Error starting HubSpot authentication:", error);
+      alert("Failed to start HubSpot authentication");
+    }
+  };
+
+  useEffect(() => {
+    // Check if HubSpot is connected
+    const checkHubspotStatus = async () => {
+      const userEmail = localStorage.getItem("userEmail");
+      if (!userEmail) return;
+
+      try {
+        const response = await axios.get("/api/hubspot/auth-status", {
+          params: { userEmail },
+        });
+
+        if (response.data.success) {
+          setHubspotStatus(response.data.isAuthenticated || false);
+        }
+      } catch (error) {
+        console.error("Error checking HubSpot status:", error);
+      }
+    };
+
+    checkHubspotStatus();
+    
+    // Check for auth callback in URL
+    const urlParams = new URLSearchParams(location.search);
+    const authStatus = urlParams.get("auth");
+    const provider = urlParams.get("provider");
+    
+    if (provider === "hubspot") {
+      if (authStatus === "success") {
+        // Refresh HubSpot status after successful auth
+        checkHubspotStatus();
+      } else if (authStatus === "error") {
+        const errorMessage = urlParams.get("message") || "Authentication failed";
+        alert(`HubSpot connection error: ${decodeURIComponent(errorMessage)}`);
+      }
+      
+      // Clean up URL parameters after processing
+      navigate("/settings", { replace: true });
+    }
+  }, [location, navigate]);
+
   return (
     <div className="settings-container">
       <nav className="nav-bar">
         <button onClick={() => navigate("/")}>Inbox</button>
       </nav>
+      {/* HubSpot Integration Section */}
+      <div className="hubspot-integration-section">
+        <h3>HubSpot Integration</h3>
+        <p>Connect to HubSpot to sync your emails with your CRM</p>
+
+        {hubspotStatus ? (
+          <div className="hubspot-connected">
+            <p>✓ HubSpot is connected</p>
+          </div>
+        ) : (
+          <button
+            className="hubspot-connect-btn"
+            onClick={handleConnectHubSpot}
+            disabled={!localStorage.getItem("userEmail")}
+          >
+            Connect to HubSpot
+          </button>
+        )}
+      </div>
       <h2>Email Integration Settings</h2>
-      
+
       {/* Provider selection */}
       <div className="provider-selection">
         <h3>Email Providers</h3>
+        <p className="provider-info">Note: Only one email provider can be connected at a time</p>
         <div className="provider-tabs">
-          {providers.map(provider => (
-            <button 
+          {providers.map((provider) => (
+            <button
               key={provider}
-              className={`provider-tab ${selectedProvider === provider ? 'active' : ''}`}
+              className={`provider-tab ${selectedProvider === provider ? "active" : ""}`}
               onClick={() => setSelectedProvider(provider)}
             >
               {provider.charAt(0).toUpperCase() + provider.slice(1)}
@@ -233,56 +347,60 @@ const SettingsPage = () => {
           ))}
         </div>
       </div>
-      
+
       {/* Selected provider settings */}
       <div className="provider-settings">
         <h3>{selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} Settings</h3>
-        
+
         {authStatus[selectedProvider]?.authenticated ? (
           <div className="connected-provider">
             <div className="connection-info">
               <p>
                 Connected with <strong>{authStatus[selectedProvider].email}</strong>
               </p>
-              <button 
-                className="disconnect-btn" 
-                onClick={() => handleDisconnect(selectedProvider)}
-              >
+              <button className="disconnect-btn" onClick={() => handleDisconnect(selectedProvider)}>
                 Disconnect
               </button>
             </div>
-            
+
             <div className="sync-controls">
               <h4>Email Synchronization</h4>
-              
+
               {initialSyncRequired[selectedProvider] ? (
                 <div className="initial-sync-required">
-                  <p><strong>Initial sync required!</strong> Please sync your emails to continue.</p>
+                  <p>
+                    <strong>Initial sync required!</strong> Please sync your emails to continue.
+                  </p>
                 </div>
               ) : null}
-              
+
               <div className="sync-options">
                 <label>Sync Emails from Last: </label>
-                <select 
-                  value={syncDays} 
-                  onChange={(e) => setSyncDays(parseInt(e.target.value))}
-                >
+                <select value={syncDays} onChange={(e) => setSyncDays(parseInt(e.target.value))}>
                   <option value={1}>1 Day</option>
                   <option value={3}>3 Days</option>
                   <option value={7}>7 Days</option>
                   <option value={14}>14 Days</option>
                   <option value={30}>30 Days</option>
                 </select>
-                
-                <button 
-                  className="sync-btn" 
+
+                <button
+                  className="sync-btn"
                   onClick={() => handleSync(selectedProvider)}
                   disabled={syncStatus[selectedProvider]?.syncing}
                 >
-                  {syncStatus[selectedProvider]?.syncing ? 'Syncing...' : 'Sync Emails'}
+                  {syncStatus[selectedProvider]?.syncing ? "Syncing..." : "Sync Emails"}
+                </button>
+
+                <button
+                  className="force-sync-btn"
+                  onClick={handleForceSync}
+                  disabled={!authStatus[selectedProvider]?.authenticated}
+                >
+                  Force Sync
                 </button>
               </div>
-              
+
               {syncStatus[selectedProvider]?.synced && (
                 <div className="sync-status success">
                   <p>✓ Emails successfully synchronized</p>
@@ -293,7 +411,7 @@ const SettingsPage = () => {
         ) : (
           <div className="connect-provider">
             <p>Connect your {selectedProvider} account to sync emails</p>
-            <button 
+            <button
               className="connect-btn"
               onClick={() => (window.location.href = authUrls[selectedProvider])}
               disabled={!authUrls[selectedProvider]}

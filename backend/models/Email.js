@@ -19,6 +19,13 @@ const messageSchema = new mongoose.Schema({
   isHtml: { type: Boolean, default: false },
   attachments: [attachmentSchema],
   provider: { type: String, required: true, default: 'gmail' },
+  classification: {
+    sentiment: { type: String, enum: ['Positive', 'Neutral', 'Negative'], default: 'Neutral' },
+    sentimentScore: { type: Number, default: 0 },
+    topic: { type: String, default: 'General' },
+    priority: { type: String, enum: ['High', 'Medium', 'Low'], default: 'Low' },
+    keywords: [String]
+  }
 });
 
 const emailSchema = new mongoose.Schema({
@@ -30,6 +37,13 @@ const emailSchema = new mongoose.Schema({
   messages: [messageSchema], // Store all thread messages in one document
   isArchived: { type: Boolean, default: false },
   provider: { type: String, required: true, enum: ['gmail', 'outlook'] },
+  // Thread-level classification (derived from the most recent or highest priority message)
+  classification: {
+    dominantSentiment: { type: String, enum: ['Positive', 'Neutral', 'Negative'], default: 'Neutral' },
+    dominantTopic: { type: String, default: 'General' },
+    highestPriority: { type: String, enum: ['High', 'Medium', 'Low'], default: 'Low' },
+    keyTopics: [String]
+  }
 });
 
 // Create compound index for threadId, provider, and userEmail
